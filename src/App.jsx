@@ -39,7 +39,7 @@ export default function App() {
       <h1 className="title">Word Photo Reader</h1>
       <p className="subtitle">Upload an image or use your camera to snap a word.</p>
 
-      <Preview imageSrc={imageSrc} />
+      <Preview words={words} onWordClick={handleWordClick} isProcessing={isProcessing} />
 
       <ImageInput onImageSet={handleImageSet} />
 
@@ -53,24 +53,6 @@ export default function App() {
       </button>
 
       <div className="status">{status}</div>
-
-      {words.length > 0 && (
-        <div className="wordsSection">
-          <h3>Words (tap to hear)</h3>
-          <div className="wordList">
-            {words.map((w, i) => (
-              <button
-                key={`${w}-${i}`}
-                type="button"
-                className="wordChip"
-                onClick={() => handleWordClick(w)}
-              >
-                {w}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -54,20 +54,27 @@ body {
   margin-bottom: 1.25rem;
 }
 
-.previewWrap.hasImage {
+.previewWrap.hasWords {
   border-style: solid;
   border-color: #e5e7eb;
+  padding: 1rem;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow-y: auto;
 }
 
 .previewPlaceholder {
   color: #9ca3af;
   font-size: 1rem;
+  text-align: center;
+  padding: 0 1rem;
 }
 
-.previewWrap img {
+.wordListPreview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
 }
 
 .buttonsRow {
