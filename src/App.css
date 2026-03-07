@@ -6,7 +6,7 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: linear-gradient(135deg, #a8c5e8 0%, #c9b8e8 50%, #e8c5d4 100%);
+  background: linear-gradient(135deg, #a8c5e8 0%, #e8dc98 50%, #f0e68c 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -23,7 +23,7 @@ body {
 }
 
 .title {
-  background: linear-gradient(135deg, #4a7fd4 0%, #8b6cb8 100%);
+  background: linear-gradient(135deg, #4a7fd4 0%, #d4a84a 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -91,7 +91,7 @@ body {
 }
 
 .btnUpload {
-  background: linear-gradient(135deg, #4a7fd4 0%, #8b6cb8 100%);
+  background: linear-gradient(135deg, #4a7fd4 0%, #d4a84a 100%);
   color: #fff;
 }
 
@@ -135,7 +135,7 @@ body {
 }
 
 .btnProcess.ready {
-  background: linear-gradient(135deg, #4a7fd4 0%, #8b6cb8 100%);
+  background: linear-gradient(135deg, #4a7fd4 0%, #d4a84a 100%);
   color: #fff;
 }
 
@@ -175,14 +175,14 @@ body {
 }
 
 .wordChip {
-  background: linear-gradient(135deg, #eef2ff 0%, #f3e8ff 100%);
-  color: #4a7fd4;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  color: #b45309;
   padding: 0.4rem 0.75rem;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid #c7d2fe;
+  border: 1px solid #fde68a;
 }
 
 .wordChip:hover {
@@ -190,7 +190,7 @@ body {
 }
 
 .wordChip.playing {
-  outline: 2px solid #4a7fd4;
+  outline: 2px solid #d4a84a;
   outline-offset: 2px;
 }
 

@@ -9,8 +9,11 @@ export default function ImageInput({ onImageSet }) {
   const handleUpload = (e) => {
     const file = e.target?.files?.[0]
     if (!file || !file.type.startsWith('image/')) return
-    const url = URL.createObjectURL(file)
-    onImageSet(url)
+    const reader = new FileReader()
+    reader.onload = () => {
+      onImageSet(reader.result)
+    }
+    reader.readAsDataURL(file)
     e.target.value = ''
   }
 

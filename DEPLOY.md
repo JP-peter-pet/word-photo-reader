@@ -2,6 +2,11 @@
 
 빈 페이지가 나오지 않도록 아래 설정을 적용하세요.
 
+## 하얀 화면만 나올 때
+
+**원인:** Build output directory가 `dist`가 아니라서, 빌드된 파일이 아닌 소스가 배포되고 있음.  
+**해결:** 아래 "Build configuration"에서 **Build output directory**를 반드시 **`dist`** 로 설정한 뒤 **Retry deployment** 하세요.
+
 ## Build configuration
 
 1. [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **word-photo-reader** 선택

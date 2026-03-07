@@ -49,11 +49,23 @@ export function useOcr() {
   const ensureWorker = useCallback(async () => {
     if (workerRef.current) return workerRef.current
     setStatus('Initializing OCR engine...')
-    const worker = await createWorker('eng', 1, { logger: () => {} })
-    workerRef.current = worker
-    setIsReady(true)
-    setStatus('Upload an image or take a photo, then tap Process Image.')
-    return worker
+    try {
+      const worker = await createWorker('eng', 1, {
+        logger: (m) => {
+          if (m.status === 'loading tesseract core' || m.status === 'loading language traineddata') {
+            setStatus(`Loading OCR: ${m.status}...`)
+          }
+        },
+      })
+      workerRef.current = worker
+      setIsReady(true)
+      setStatus('Upload an image or take a photo, then tap Process Image.')
+      return worker
+    } catch (e) {
+      const msg = e?.message || String(e)
+      setStatus('Error: ' + (msg || 'Failed to load OCR engine.'))
+      throw e
+    }
   }, [])
 
   const runOcr = useCallback(
@@ -73,7 +85,9 @@ export function useOcr() {
         )
         return singleWords
       } catch (e) {
-        setStatus('Error: ' + (e?.message || 'Processing failed.'))
+        const msg = e?.message || e?.toString?.() || 'Processing failed.'
+        setStatus('Error: ' + msg)
+        console.error('OCR error:', e)
         return []
       } finally {
         setIsProcessing(false)
