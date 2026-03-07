@@ -69,8 +69,9 @@ function dataUrlToPngBlob(dataUrl) {
 }
 
 /**
- * 이미지 상: "단어" 열(가장 왼쪽)에만 있는 20개만 추출.
- * 같은 줄의 한글 뜻·예문(오른쪽)은 제외 — 각 줄에서 가장 왼쪽(X 최소) 단어만 채택.
+ * 이미지 상: 왼쪽 "단어" 열 단어 중, 우측(예문)에 쓰인 것만 하나씩 뽑아서 반환.
+ * - 왼쪽 열 = 각 줄에서 가장 왼쪽(X 최소) 단어
+ * - 우측에 쓰임 = 같은 줄에서 왼쪽이 아닌 위치에 그 단어가 등장
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
@@ -97,9 +98,21 @@ function extractSingleWordsFromWords(words) {
   }
   lines.push(currentLine)
 
-  const singleWords = []
+  // 우측(같은 줄에서 왼쪽이 아닌 칸)에 등장한 영어 단어 집합
+  const rightSideWords = new Set()
   for (const line of lines) {
-    // 같은 줄에서 가장 왼쪽 단어만 = "단어" 열. 나머지(뜻·예문) 제외
+    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
+    for (let i = 1; i < byX.length; i++) {
+      const raw = (byX[i].text || '').trim()
+      const cleaned = cleanWord(raw)
+      if (cleaned && isSingleEnglishWord(cleaned)) rightSideWords.add(cleaned.toLowerCase())
+    }
+  }
+
+  // 왼쪽 열 단어 중 우측에 쓰인 것만, 순서 유지·중복 없이
+  const singleWords = []
+  const seen = new Set()
+  for (const line of lines) {
     const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
     const leftmost = byX[0]
     const raw = (leftmost.text || '').trim()
@@ -107,10 +120,13 @@ function extractSingleWordsFromWords(words) {
     const cleaned = cleanWord(raw)
     if (!cleaned || !isSingleEnglishWord(cleaned)) continue
     if (shouldExcludeWord(cleaned)) continue
+    const key = cleaned.toLowerCase()
+    if (!rightSideWords.has(key) || seen.has(key)) continue
+    seen.add(key)
     singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
   }
-  return singleWords.slice(0, MAX_WORDS_PER_PAGE)
+  return singleWords
 }
 
 export function useOcr() {
