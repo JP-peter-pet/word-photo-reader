@@ -3,7 +3,7 @@ import { createWorker } from 'tesseract.js'
 
 const LINE_THRESHOLD = 15
 
-/** blob: URL이면 fetch 후 data URL로 변환. Web Worker에서 blob을 읽지 못하는 문제 방지. */
+/** blob: URL이면 fetch 후 data URL로 변환. */
 async function ensureDataUrl(imageSrc) {
   if (typeof imageSrc !== 'string' || !imageSrc.startsWith('blob:')) return imageSrc
   const res = await fetch(imageSrc)
@@ -14,6 +14,20 @@ async function ensureDataUrl(imageSrc) {
     r.onerror = () => reject(new Error('Failed to read image data.'))
     r.readAsDataURL(blob)
   })
+}
+
+/** data URL → Blob. 긴 문자열 대신 Blob을 넘겨 배포 환경에서 인식 실패를 줄임. */
+function dataUrlToBlob(dataUrl) {
+  const comma = dataUrl.indexOf(',')
+  if (comma === -1) throw new Error('Invalid data URL')
+  const header = dataUrl.slice(0, comma)
+  const base64 = dataUrl.slice(comma + 1)
+  const mimeMatch = header.match(/:(.*?);/)
+  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
 }
 
 /**
@@ -88,8 +102,9 @@ export function useOcr() {
       setStatus('Processing...')
       try {
         const worker = await ensureWorker()
-        const imageForOcr = await ensureDataUrl(imageSrc)
-        const { data } = await worker.recognize(imageForOcr)
+        const dataUrl = await ensureDataUrl(imageSrc)
+        const imageBlob = dataUrlToBlob(dataUrl)
+        const { data } = await worker.recognize(imageBlob)
         const rawWords = data?.words ?? []
         const singleWords = extractSingleWordsFromWords(rawWords)
         setStatus(
