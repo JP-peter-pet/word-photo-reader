@@ -69,23 +69,24 @@ function dataUrlToPngBlob(dataUrl) {
 }
 
 /**
- * 이미지 상: 단어 아래 20줄, 한 칸에 단어 하나씩 들어간 줄만 추출.
- * OCR로 그 칸들의 단어만 가져와 위→아래 순서로 최대 20개 반환.
+ * 이미지 상: 단어 아래 20개 단어가 한 줄로 쭉 나열돼 있든, 한 칸씩 여러 줄이든
+ * OCR로 읽은 단어 토큰을 위→아래·왼쪽→오른쪽 순서로 모아 최대 20개 반환.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
-  const sorted = [...words].filter((w) => w.text && w.text.trim())
-  if (!sorted.length) return []
-  sorted.sort((a, b) => {
+  const filtered = [...words].filter((w) => w.text && w.text.trim())
+  if (!filtered.length) return []
+  // Y 기준으로 줄 묶기
+  filtered.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
     return yA - yB
   })
   const lines = []
-  let currentLine = [sorted[0]]
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1]
-    const curr = sorted[i]
+  let currentLine = [filtered[0]]
+  for (let i = 1; i < filtered.length; i++) {
+    const prev = filtered[i - 1]
+    const curr = filtered[i]
     const prevMidY = ((prev.bbox?.y0 ?? 0) + (prev.bbox?.y1 ?? 0)) / 2
     const currMidY = ((curr.bbox?.y0 ?? 0) + (curr.bbox?.y1 ?? 0)) / 2
     if (Math.abs(currMidY - prevMidY) <= LINE_THRESHOLD) {
@@ -96,17 +97,22 @@ function extractSingleWordsFromWords(words) {
     }
   }
   lines.push(currentLine)
+
   const singleWords = []
-  lines.forEach((line) => {
-    const wordsInLine = line.map((w) => (w.text || '').trim()).filter(Boolean)
-    if (wordsInLine.length === 1) {
-      const cleaned = cleanWord(wordsInLine[0])
-      if (!cleaned || !isSingleEnglishWord(cleaned)) return
-      if (shouldExcludeWord(cleaned)) return // unit1, TEE 등 제외
+  for (const line of lines) {
+    // 같은 줄 안에서는 X(가로) 순서로 정렬 → 20개 단어가 한 줄일 때 왼쪽→오른쪽 순서
+    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
+    for (const w of byX) {
+      const raw = (w.text || '').trim()
+      if (!raw) continue
+      const cleaned = cleanWord(raw)
+      if (!cleaned || !isSingleEnglishWord(cleaned)) continue
+      if (shouldExcludeWord(cleaned)) continue
       singleWords.push(cleaned)
+      if (singleWords.length >= MAX_WORDS_PER_PAGE) break
     }
-  })
-  // 이미지에서의 순서(위→아래) 유지, 최대 20개
+    if (singleWords.length >= MAX_WORDS_PER_PAGE) break
+  }
   return singleWords.slice(0, MAX_WORDS_PER_PAGE)
 }
 
