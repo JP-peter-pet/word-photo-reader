@@ -7,13 +7,6 @@ const MAX_WORDS_PER_PAGE = 20
 /** 제외할 단어 (헤더·OCR 오인식 등). 대소문자 무시 */
 const EXCLUDED_WORDS = new Set(['TEE', 'UNIT'])
 
-/** 허용 단어 화이트리스트 — 이 목록에 있는 것만 표시 (OCR 노이즈 제거). swimming/pad는 합쳐서 swimming pad로 */
-const ALLOWED_WORDS = new Set([
-  'belt', 'bottom', 'deep', 'float', 'future', 'get', 'high', 'level', 'nervous',
-  'practice', 'rank', 'swimming', 'pad', 'swimming pad', 'strong', 'tomorrow', 'scared', 'late',
-  'stand', 'tell', 'bad', 'show',
-])
-
 /** 뒤에 1이 붙은 단어(예: unit1), TEE 등 제외 */
 function shouldExcludeWord(word) {
   if (!word || word.length < 2) return true
@@ -86,9 +79,8 @@ const CANONICAL_ORDER = [
 ]
 
 /**
- * 이미지 전체에서 화이트리스트에 있는 단어만 위→아래·왼→오 순으로 수집 (최대 20개).
- * 왼쪽 열만 쓰면 OCR이 놓치는 단어가 있어서, 예문 등 다른 위치에서 같은 단어가 나와도 채움.
- * swimming + pad → "swimming pad" 한 개로 합침.
+ * 이미지에 있는 내용에서 동일 조건(영문 1단어·제외어·복합어 합치기)으로 최대 20개만 수집.
+ * 화이트리스트 없이 OCR이 읽은 단어를 위→아래·왼→오 순으로. swimming + pad → "swimming pad" 한 개로 합침.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
@@ -120,14 +112,12 @@ function extractSingleWordsFromWords(words) {
         singleWords.pop()
         seen.delete(prevKey)
         const merged = pair[0] + ' ' + pair[1]
-        if (!ALLOWED_WORDS.has(merged)) continue
         singleWords.push(merged)
         seen.add(merged)
         continue
       }
     }
 
-    if (!ALLOWED_WORDS.has(key)) continue
     seen.add(key)
     singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
@@ -146,16 +136,14 @@ function extractSingleWordsFromWords(words) {
     singleWords.push(...merged)
   }
 
-  // 리스트 순서대로 정렬 (CANONICAL_ORDER에 있으면 그 순서, 없으면 뒤로)
+  // 리스트 순서: CANONICAL_ORDER에 있으면 그 순서, 없으면 뒤로 (이미지에서 읽은 단어만 반환)
   const orderIndex = (word) => {
     const k = word.toLowerCase()
     const i = CANONICAL_ORDER.indexOf(k)
     return i === -1 ? CANONICAL_ORDER.length : i
   }
   singleWords.sort((a, b) => orderIndex(a) - orderIndex(b))
-
-  // 이미지마다 OCR로 추출한 단어만 반환 (다른 이미지면 다른 목록)
-  return singleWords
+  return singleWords.slice(0, MAX_WORDS_PER_PAGE)
 }
 
 export function useOcr() {
