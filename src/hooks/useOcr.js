@@ -2,6 +2,13 @@ import { useState, useCallback, useRef } from 'react'
 import { createWorker } from 'tesseract.js'
 
 const LINE_THRESHOLD = 15
+const MAX_WORDS_PER_PAGE = 20
+
+/** 단어 앞뒤 문장부호 제거 (angry? → angry, carpet. → carpet) */
+function cleanWord(text) {
+  if (!text || typeof text !== 'string') return ''
+  return text.trim().replace(/^[\s.,?!;:'"()\[\]-]+|[\s.,?!;:'"()\[\]-]+$/g, '')
+}
 
 /** blob: URL이면 fetch 후 data URL로 변환. */
 async function ensureDataUrl(imageSrc) {
@@ -75,10 +82,11 @@ function extractSingleWordsFromWords(words) {
   lines.forEach((line) => {
     const wordsInLine = line.map((w) => (w.text || '').trim()).filter(Boolean)
     if (wordsInLine.length === 1) {
-      singleWords.push(wordsInLine[0])
+      const cleaned = cleanWord(wordsInLine[0])
+      if (cleaned) singleWords.push(cleaned)
     }
   })
-  return singleWords
+  return singleWords.slice(0, MAX_WORDS_PER_PAGE)
 }
 
 export function useOcr() {
@@ -125,7 +133,7 @@ export function useOcr() {
         const singleWords = extractSingleWordsFromWords(rawWords)
         setStatus(
           singleWords.length
-            ? `Found ${singleWords.length} word(s). Tap a word to hear it.`
+            ? `Found ${singleWords.length} word(s) (max ${MAX_WORDS_PER_PAGE}). Tap a word to hear it.`
             : 'No single words in boxes found.'
         )
         return singleWords
