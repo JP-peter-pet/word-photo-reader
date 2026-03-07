@@ -68,8 +68,8 @@ function dataUrlToPngBlob(dataUrl) {
   })
 }
 
-/** 실제 사진의 단어 열만 사용 — 왼쪽 영역(예문·옆 단원 제외) */
-const LEFT_COLUMN_X_RATIO = 0.35
+/** 실제 사진의 단어 열 — 왼쪽 영역 (비율 넓혀서 인식 개선) */
+const LEFT_COLUMN_X_RATIO = 0.45
 
 /** 연달아 나오면 한 개로 합칠 복합 단어 [앞, 뒤]. 소문자로 비교 */
 const COMPOUNDS = [['swimming', 'pad']]
@@ -93,15 +93,15 @@ function extractSingleWordsFromWords(words) {
   const leftXMax = pageWidth * LEFT_COLUMN_X_RATIO
   const midX = (w) => ((w.bbox?.x0 ?? 0) + (w.bbox?.x1 ?? 0)) / 2
   const inLeftColumn = (w) => midX(w) < leftXMax
-  const leftWords = filtered.filter(inLeftColumn)
-  if (leftWords.length === 0) return []
+  let leftWords = filtered.filter(inLeftColumn)
+  if (leftWords.length === 0) leftWords = filtered
   leftWords.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
     if (Math.abs(yA - yB) > LINE_THRESHOLD) return yA - yB
     return (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0)
   })
-  // 줄 묶기: 같은 Y면 같은 줄
+  // 줄 묶기 → 각 줄에서 가장 왼쪽 단어 1개만 시도
   const lines = []
   let currentLine = [leftWords[0]]
   for (let i = 1; i < leftWords.length; i++) {
@@ -117,37 +117,45 @@ function extractSingleWordsFromWords(words) {
     }
   }
   lines.push(currentLine)
-  // 각 줄에서 가장 왼쪽 단어 1개만 = 사진의 단어 열에 실제 있는 것만
   const singleWords = []
   const seen = new Set()
-  for (const line of lines) {
-    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
-    const w = byX[0]
-    const raw = (w.text || '').trim()
-    if (!raw) continue
-    const cleaned = cleanWord(raw)
-    if (!cleaned || !isSingleEnglishWord(cleaned)) continue
-    if (shouldExcludeWord(cleaned)) continue
-    const key = cleaned.toLowerCase()
-    if (seen.has(key)) continue
-
-    // 연달아 나온 두 단어가 복합어면 하나로 합침 (예: swimming + pad → swimming pad)
+  const addWord = (cleaned, key) => {
+    if (!cleaned || !isSingleEnglishWord(cleaned) || shouldExcludeWord(cleaned) || seen.has(key)) return false
     if (singleWords.length >= 1) {
       const prevKey = singleWords[singleWords.length - 1].toLowerCase()
       const pair = COMPOUNDS.find(([a, b]) => a === prevKey && b === key)
       if (pair) {
         singleWords.pop()
         seen.delete(prevKey)
-        const merged = pair[0] + ' ' + pair[1]
-        singleWords.push(merged)
-        seen.add(merged)
-        continue
+        singleWords.push(pair[0] + ' ' + pair[1])
+        seen.add(pair[0] + ' ' + pair[1])
+        return true
       }
     }
-
     seen.add(key)
     singleWords.push(cleaned)
+    return true
+  }
+  for (const line of lines) {
+    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
+    const w = byX[0]
+    const raw = (w.text || '').trim()
+    if (!raw) continue
+    const cleaned = cleanWord(raw)
+    const key = cleaned.toLowerCase()
+    addWord(cleaned, key)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
+  }
+  // 한 줄에 한 단어로 0개면 → 왼쪽 영역 전체에서 순서대로 수집 (폴백)
+  if (singleWords.length === 0) {
+    for (const w of leftWords) {
+      const raw = (w.text || '').trim()
+      if (!raw) continue
+      const cleaned = cleanWord(raw)
+      const key = cleaned.toLowerCase()
+      addWord(cleaned, key)
+      if (singleWords.length >= MAX_WORDS_PER_PAGE) break
+    }
   }
 
   // 복합명사: swimming과 pad가 따로 있으면 한 단어 "swimming pad"로 합침
