@@ -3,6 +3,19 @@ import { createWorker } from 'tesseract.js'
 
 const LINE_THRESHOLD = 15
 
+/** blob: URL이면 fetch 후 data URL로 변환. Web Worker에서 blob을 읽지 못하는 문제 방지. */
+async function ensureDataUrl(imageSrc) {
+  if (typeof imageSrc !== 'string' || !imageSrc.startsWith('blob:')) return imageSrc
+  const res = await fetch(imageSrc)
+  const blob = await res.blob()
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result)
+    r.onerror = () => reject(new Error('Failed to read image data.'))
+    r.readAsDataURL(blob)
+  })
+}
+
 /**
  * Tesseract words 배열에서 "한 줄(박스)에 단어가 1개인" 경우만 추출 (긴 예문 제외).
  */
@@ -75,7 +88,8 @@ export function useOcr() {
       setStatus('Processing...')
       try {
         const worker = await ensureWorker()
-        const { data } = await worker.recognize(imageSrc)
+        const imageForOcr = await ensureDataUrl(imageSrc)
+        const { data } = await worker.recognize(imageForOcr)
         const rawWords = data?.words ?? []
         const singleWords = extractSingleWordsFromWords(rawWords)
         setStatus(
