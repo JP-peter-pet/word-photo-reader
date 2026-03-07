@@ -16,18 +16,32 @@ async function ensureDataUrl(imageSrc) {
   })
 }
 
-/** data URL → Blob. 긴 문자열 대신 Blob을 넘겨 배포 환경에서 인식 실패를 줄임. */
-function dataUrlToBlob(dataUrl) {
-  const comma = dataUrl.indexOf(',')
-  if (comma === -1) throw new Error('Invalid data URL')
-  const header = dataUrl.slice(0, comma)
-  const base64 = dataUrl.slice(comma + 1)
-  const mimeMatch = header.match(/:(.*?);/)
-  const mime = mimeMatch ? mimeMatch[1] : 'image/png'
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
+/**
+ * data URL → 캔버스로 그린 뒤 PNG Blob 반환.
+ * 브라우저가 디코딩한 뒤 다시 PNG로 인코딩해, 포맷/손상 이슈를 피함.
+ */
+function dataUrlToPngBlob(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Canvas not supported'))
+        return
+      }
+      ctx.drawImage(img, 0, 0)
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
+        'image/png',
+        0.95
+      )
+    }
+    img.onerror = () => reject(new Error('Failed to load image'))
+    img.src = dataUrl
+  })
 }
 
 /**
@@ -78,6 +92,8 @@ export function useOcr() {
     setStatus('Initializing OCR engine...')
     try {
       const worker = await createWorker('eng', 1, {
+        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',
         logger: (m) => {
           if (m.status === 'loading tesseract core' || m.status === 'loading language traineddata') {
             setStatus(`Loading OCR: ${m.status}...`)
@@ -103,7 +119,7 @@ export function useOcr() {
       try {
         const worker = await ensureWorker()
         const dataUrl = await ensureDataUrl(imageSrc)
-        const imageBlob = dataUrlToBlob(dataUrl)
+        const imageBlob = await dataUrlToPngBlob(dataUrl)
         const { data } = await worker.recognize(imageBlob)
         const rawWords = data?.words ?? []
         const singleWords = extractSingleWordsFromWords(rawWords)
@@ -117,6 +133,9 @@ export function useOcr() {
         const msg = e?.message || e?.toString?.() || 'Processing failed.'
         setStatus('Error: ' + msg)
         console.error('OCR error:', e)
+        if (msg.includes('read image') && typeof window !== 'undefined') {
+          console.error('Tip: If this happens only on the deployed site, Tesseract may need custom workerPath/corePath. See DEPLOY.md')
+        }
         return []
       } finally {
         setIsProcessing(false)
