@@ -7,7 +7,7 @@ export default function Preview({ words, onWordClick, isProcessing }) {
             <button
               key={`${w}-${i}`}
               type="button"
-              className="wordChip"
+              className={`wordChip color${i % 7}`}
               onClick={() => onWordClick(w)}
             >
               {w}

@@ -182,14 +182,13 @@ body {
 }
 
 .wordChip {
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  color: #b45309;
   padding: 0.4rem 0.75rem;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  border: 1px solid #fde68a;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #fff;
 }
 
 .wordChip:hover {
@@ -197,9 +196,18 @@ body {
 }
 
 .wordChip.playing {
-  outline: 2px solid #d4a84a;
+  outline: 2px solid rgba(0, 0, 0, 0.3);
   outline-offset: 2px;
 }
+
+/* 빨주노초파남보 */
+.wordChip.color0 { background: #ef4444; }
+.wordChip.color1 { background: #f97316; }
+.wordChip.color2 { background: #eab308; color: #1f2937; }
+.wordChip.color3 { background: #22c55e; }
+.wordChip.color4 { background: #3b82f6; }
+.wordChip.color5 { background: #6366f1; }
+.wordChip.color6 { background: #8b5cf6; }
 
 .hiddenInput {
   display: none;

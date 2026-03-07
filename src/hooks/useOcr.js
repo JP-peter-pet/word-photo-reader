@@ -10,6 +10,12 @@ function cleanWord(text) {
   return text.trim().replace(/^[\s.,?!;:'"()\[\]-]+|[\s.,?!;:'"()\[\]-]+$/g, '')
 }
 
+/** 표에서 "한 칸에 영어 1단어"인지: 영문만, 3자 이상 (re·ca 같은 조각 제외) */
+function isSingleEnglishWord(word) {
+  if (!word || word.length < 3) return false
+  return /^[a-zA-Z]+$/.test(word)
+}
+
 /** blob: URL이면 fetch 후 data URL로 변환. */
 async function ensureDataUrl(imageSrc) {
   if (typeof imageSrc !== 'string' || !imageSrc.startsWith('blob:')) return imageSrc
@@ -83,7 +89,7 @@ function extractSingleWordsFromWords(words) {
     const wordsInLine = line.map((w) => (w.text || '').trim()).filter(Boolean)
     if (wordsInLine.length === 1) {
       const cleaned = cleanWord(wordsInLine[0])
-      if (cleaned) singleWords.push(cleaned)
+      if (cleaned && isSingleEnglishWord(cleaned)) singleWords.push(cleaned)
     }
   })
   return singleWords.slice(0, MAX_WORDS_PER_PAGE)
