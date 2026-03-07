@@ -146,7 +146,7 @@ function extractSingleWordsFromWords(words) {
     singleWords.push(...merged)
   }
 
-  // 리스트 순서대로 정렬
+  // 리스트 순서대로 정렬 (CANONICAL_ORDER에 있으면 그 순서, 없으면 뒤로)
   const orderIndex = (word) => {
     const k = word.toLowerCase()
     const i = CANONICAL_ORDER.indexOf(k)
@@ -154,8 +154,7 @@ function extractSingleWordsFromWords(words) {
   }
   singleWords.sort((a, b) => orderIndex(a) - orderIndex(b))
 
-  // OCR에서 못 찾은 단어(deep, future 등)도 채워서 항상 20개 표시 (이미지에서 1개라도 찾았을 때만)
-  if (singleWords.length > 0) return [...CANONICAL_ORDER]
+  // 이미지마다 OCR로 추출한 단어만 반환 (다른 이미지면 다른 목록)
   return singleWords
 }
 
