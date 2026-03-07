@@ -78,6 +78,13 @@ function dataUrlToPngBlob(dataUrl) {
 /** 연달아 나오면 한 개로 합칠 복합 단어 [앞, 뒤]. 소문자로 비교 */
 const COMPOUNDS = [['swimming', 'pad']]
 
+/** 표시 순서 (리스트 순서대로). 복합명사 swimming pad는 한 항목 */
+const CANONICAL_ORDER = [
+  'belt', 'bottom', 'deep', 'float', 'future', 'get', 'high', 'level', 'nervous',
+  'practice', 'rank', 'swimming pad', 'strong', 'tomorrow', 'scared', 'late',
+  'stand', 'tell', 'bad', 'show',
+]
+
 /**
  * 이미지 전체에서 화이트리스트에 있는 단어만 위→아래·왼→오 순으로 수집 (최대 20개).
  * 왼쪽 열만 쓰면 OCR이 놓치는 단어가 있어서, 예문 등 다른 위치에서 같은 단어가 나와도 채움.
@@ -125,6 +132,27 @@ function extractSingleWordsFromWords(words) {
     singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
   }
+
+  // 복합명사: swimming과 pad가 따로 있으면 한 단어 "swimming pad"로 합침
+  const hasSwimming = singleWords.some((w) => w.toLowerCase() === 'swimming')
+  const hasPad = singleWords.some((w) => w.toLowerCase() === 'pad')
+  if (hasSwimming && hasPad) {
+    const merged = singleWords.filter((w) => {
+      const k = w.toLowerCase()
+      return k !== 'swimming' && k !== 'pad'
+    })
+    if (!merged.some((w) => w.toLowerCase() === 'swimming pad')) merged.push('swimming pad')
+    singleWords.length = 0
+    singleWords.push(...merged)
+  }
+
+  // 리스트 순서대로 정렬
+  const orderIndex = (word) => {
+    const k = word.toLowerCase()
+    const i = CANONICAL_ORDER.indexOf(k)
+    return i === -1 ? CANONICAL_ORDER.length : i
+  }
+  singleWords.sort((a, b) => orderIndex(a) - orderIndex(b))
   return singleWords
 }
 
