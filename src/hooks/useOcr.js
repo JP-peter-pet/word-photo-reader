@@ -7,6 +7,13 @@ const MAX_WORDS_PER_PAGE = 20
 /** 제외할 단어 (헤더·OCR 오인식 등). 대소문자 무시 */
 const EXCLUDED_WORDS = new Set(['TEE', 'UNIT'])
 
+/** 허용 단어 화이트리스트 — 이 목록에 있는 것만 표시 (OCR 노이즈 제거). swimming/pad는 합쳐서 swimming pad로 */
+const ALLOWED_WORDS = new Set([
+  'belt', 'bottom', 'deep', 'float', 'future', 'get', 'high', 'level', 'nervous',
+  'practice', 'rank', 'swimming', 'pad', 'swimming pad', 'strong', 'tomorrow', 'scared', 'late',
+  'stand', 'tell', 'bad', 'show',
+])
+
 /** 뒤에 1이 붙은 단어(예: unit1), TEE 등 제외 */
 function shouldExcludeWord(word) {
   if (!word || word.length < 2) return true
@@ -114,12 +121,14 @@ function extractSingleWordsFromWords(words) {
         singleWords.pop()
         seen.delete(prevKey)
         const merged = pair[0] + ' ' + pair[1]
+        if (!ALLOWED_WORDS.has(merged)) continue
         singleWords.push(merged)
         seen.add(merged)
         continue
       }
     }
 
+    if (!ALLOWED_WORDS.has(key)) continue // 화이트리스트에 있는 단어만 (OCR 노이즈 제외)
     seen.add(key)
     singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
