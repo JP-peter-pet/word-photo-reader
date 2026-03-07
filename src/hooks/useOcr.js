@@ -71,9 +71,13 @@ function dataUrlToPngBlob(dataUrl) {
 /** "단어" 열 = 페이지 왼쪽 영역(비율로 구분) */
 const LEFT_COLUMN_X_RATIO = 0.35
 
+/** 연달아 나오면 한 개로 합칠 복합 단어 [앞, 뒤]. 소문자로 비교 */
+const COMPOUNDS = [['swimming', 'pad']]
+
 /**
  * 이미지 상: "단어" 밑에 있는 20개 단어만 가져옴.
  * 왼쪽 열(단어 열)에 있는 영어 단어만, 위→아래 순서로 최대 20개.
+ * swimming + pad → "swimming pad" 한 개로 합침.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
@@ -101,6 +105,21 @@ function extractSingleWordsFromWords(words) {
     if (shouldExcludeWord(cleaned)) continue
     const key = cleaned.toLowerCase()
     if (seen.has(key)) continue
+
+    // 연달아 나온 두 단어가 복합어면 하나로 합침 (예: swimming + pad → swimming pad)
+    if (singleWords.length >= 1) {
+      const prevKey = singleWords[singleWords.length - 1].toLowerCase()
+      const pair = COMPOUNDS.find(([a, b]) => a === prevKey && b === key)
+      if (pair) {
+        singleWords.pop()
+        seen.delete(prevKey)
+        const merged = pair[0] + ' ' + pair[1]
+        singleWords.push(merged)
+        seen.add(merged)
+        continue
+      }
+    }
+
     seen.add(key)
     singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
