@@ -68,6 +68,9 @@ function dataUrlToPngBlob(dataUrl) {
   })
 }
 
+/** 실제 사진의 단어 열만 사용 — 왼쪽 영역(예문·옆 단원 제외) */
+const LEFT_COLUMN_X_RATIO = 0.35
+
 /** 연달아 나오면 한 개로 합칠 복합 단어 [앞, 뒤]. 소문자로 비교 */
 const COMPOUNDS = [['swimming', 'pad']]
 
@@ -79,14 +82,19 @@ const CANONICAL_ORDER = [
 ]
 
 /**
- * 전체 페이지에서 단어 수집 (위→아래·왼→오 순). 영문 1단어·제외어·복합어 합치기, 최대 20개.
- * swimming + pad → "swimming pad".
+ * 실제 준 사진에서만: 왼쪽 단어 열(약 35%)만 수집. 예문·뜻·옆 단원 제외.
+ * 영문 1단어·제외어·복합어 합치기, 최대 20개. swimming + pad → "swimming pad".
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
   const filtered = [...words].filter((w) => w.text && w.text.trim())
   if (!filtered.length) return []
-  filtered.sort((a, b) => {
+  const pageWidth = Math.max(...filtered.map((w) => w.bbox?.x1 ?? 0), 1)
+  const leftXMax = pageWidth * LEFT_COLUMN_X_RATIO
+  const midX = (w) => ((w.bbox?.x0 ?? 0) + (w.bbox?.x1 ?? 0)) / 2
+  const inLeftColumn = (w) => midX(w) < leftXMax
+  const leftWords = filtered.filter(inLeftColumn)
+  leftWords.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
     if (Math.abs(yA - yB) > LINE_THRESHOLD) return yA - yB
@@ -94,7 +102,7 @@ function extractSingleWordsFromWords(words) {
   })
   const singleWords = []
   const seen = new Set()
-  for (const w of filtered) {
+  for (const w of leftWords) {
     const raw = (w.text || '').trim()
     if (!raw) continue
     const cleaned = cleanWord(raw)
