@@ -1,0 +1,3 @@
+# Cloudflare Pages (Nixpacks) 빌드 시 Node 20 사용
+[variables]
+NIXPACKS_NODE_VERSION = "20"
