@@ -11,7 +11,7 @@ export default function App() {
   const [imageSrc, setImageSrc] = useState(null)
   const [words, setWords] = useState([])
   const { runOcr, status, isProcessing, isReady, setReadyStatus } = useOcr()
-  const { speakWord, stopSpeaking, isSpeaking, currentWord } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
+  const { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
 
   useEffect(() => {
     if (isReady) setReadyStatus()
@@ -52,7 +52,22 @@ export default function App() {
         Process Image
       </button>
 
-      <div className="status">{status}</div>
+      <div className="status">
+        {status}
+        {words.length > 0 && (
+          <>
+            {' '}
+            <button
+              type="button"
+              className="btnTapToHear"
+              onClick={() => speakWordList(words)}
+              disabled={isSpeaking}
+            >
+              tap to hear
+            </button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

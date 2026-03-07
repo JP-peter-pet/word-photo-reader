@@ -80,5 +80,36 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
     [repeatCount, delayMs, speakOnce, stopSpeaking]
   )
 
-  return { speakWord, stopSpeaking, isSpeaking, currentWord }
+  const LIST_DELAY_MS = 1200
+
+  const speakWordList = useCallback(
+    (wordList) => {
+      if (!wordList?.length || !window.speechSynthesis) return
+      stopSpeaking()
+      setIsSpeaking(true)
+      let index = 0
+      const next = () => {
+        if (index >= wordList.length) {
+          setIsSpeaking(false)
+          setCurrentWord(null)
+          return
+        }
+        const w = String(wordList[index]).trim()
+        if (!w) {
+          index += 1
+          timeoutRef.current = setTimeout(next, 300)
+          return
+        }
+        setCurrentWord(w)
+        speakOnce(w, () => {
+          index += 1
+          timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
+        })
+      }
+      next()
+    },
+    [speakOnce, stopSpeaking]
+  )
+
+  return { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord }
 }

@@ -161,6 +161,29 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.btnTapToHear {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: linear-gradient(135deg, #4a7fd4 0%, #d4a84a 100%);
+  color: #fff;
+  touch-action: manipulation;
+}
+
+.btnTapToHear:hover:not(:disabled) {
+  opacity: 0.95;
+}
+
+.btnTapToHear:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .wordsSection {

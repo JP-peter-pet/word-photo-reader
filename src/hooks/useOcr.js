@@ -203,7 +203,7 @@ export function useOcr() {
         const singleWords = extractSingleWordsFromWords(rawWords)
         setStatus(
           singleWords.length
-            ? `Found ${singleWords.length} word(s) (max ${MAX_WORDS_PER_PAGE}). tap to hear.`
+            ? `Found ${singleWords.length} word(s) (max ${MAX_WORDS_PER_PAGE}).`
             : 'No single words in boxes found.'
         )
         return singleWords
