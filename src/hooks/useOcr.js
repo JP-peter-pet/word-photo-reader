@@ -4,8 +4,8 @@ import { createWorker } from 'tesseract.js'
 const LINE_THRESHOLD = 15
 const MAX_WORDS_PER_PAGE = 20
 
-/** 제외할 단어 (헤더·OCR 오인식 등). 대소문자 무시 */
-const EXCLUDED_WORDS = new Set(['TEE', 'UNIT'])
+/** 제외할 단어 (헤더·OCR 할루시네이션·오인식). 대소문자 무시 — 실제 없는 단어 제거 */
+const EXCLUDED_WORDS = new Set(['TEE', 'UNIT', 'HALLUCI', 'HALUSHI', 'HALLUCINATION'])
 
 /** 뒤에 1이 붙은 단어(예: unit1), TEE 등 제외 */
 function shouldExcludeWord(word) {
@@ -82,8 +82,8 @@ const CANONICAL_ORDER = [
 ]
 
 /**
- * 실제 준 사진에서만: 왼쪽 단어 열(약 35%)만 수집. 예문·뜻·옆 단원 제외.
- * 영문 1단어·제외어·복합어 합치기, 최대 20개. swimming + pad → "swimming pad".
+ * 사진에서만: 왼쪽 영역을 줄 단위로 보고, 각 줄에서 가장 왼쪽 단어 1개만 수집 (= 단어 열만).
+ * 예문·헤더·노이즈 제외. 영문 1단어·제외어·복합어 합치기, 최대 20개.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
@@ -94,15 +94,35 @@ function extractSingleWordsFromWords(words) {
   const midX = (w) => ((w.bbox?.x0 ?? 0) + (w.bbox?.x1 ?? 0)) / 2
   const inLeftColumn = (w) => midX(w) < leftXMax
   const leftWords = filtered.filter(inLeftColumn)
+  if (leftWords.length === 0) return []
   leftWords.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
     if (Math.abs(yA - yB) > LINE_THRESHOLD) return yA - yB
     return (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0)
   })
+  // 줄 묶기: 같은 Y면 같은 줄
+  const lines = []
+  let currentLine = [leftWords[0]]
+  for (let i = 1; i < leftWords.length; i++) {
+    const prev = leftWords[i - 1]
+    const curr = leftWords[i]
+    const prevMidY = ((prev.bbox?.y0 ?? 0) + (prev.bbox?.y1 ?? 0)) / 2
+    const currMidY = ((curr.bbox?.y0 ?? 0) + (curr.bbox?.y1 ?? 0)) / 2
+    if (Math.abs(currMidY - prevMidY) <= LINE_THRESHOLD) {
+      currentLine.push(curr)
+    } else {
+      lines.push(currentLine)
+      currentLine = [curr]
+    }
+  }
+  lines.push(currentLine)
+  // 각 줄에서 가장 왼쪽 단어 1개만 = 사진의 단어 열에 실제 있는 것만
   const singleWords = []
   const seen = new Set()
-  for (const w of leftWords) {
+  for (const line of lines) {
+    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
+    const w = byX[0]
     const raw = (w.text || '').trim()
     if (!raw) continue
     const cleaned = cleanWord(raw)
