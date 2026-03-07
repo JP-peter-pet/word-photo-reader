@@ -2,7 +2,19 @@ import { useState, useCallback, useRef } from 'react'
 import { createWorker } from 'tesseract.js'
 
 const LINE_THRESHOLD = 15
+/** 이미지 상 "단어 아래 칸" — 한 칸에 단어 하나씩 들어간 줄이 20개. OCR로 그 20줄만 가져와서 보여줌 */
 const MAX_WORDS_PER_PAGE = 20
+
+/** 제외할 단어 (OCR 오인식 등). 대소문자 무시 */
+const EXCLUDED_WORDS = new Set(['TEE'])
+
+/** 뒤에 1이 붙은 단어(예: unit1) 제외, TEE 등 제외 */
+function shouldExcludeWord(word) {
+  if (!word || word.length < 2) return true
+  if (/1$/.test(word)) return true // unit1 등
+  if (EXCLUDED_WORDS.has(word.toUpperCase())) return true
+  return false
+}
 
 /** 단어 앞뒤 문장부호 제거 (angry? → angry, carpet. → carpet) */
 function cleanWord(text) {
@@ -57,23 +69,31 @@ function dataUrlToPngBlob(dataUrl) {
   })
 }
 
+/** bbox 중심 (midY, midX) 반환 */
+function getBboxCenter(w) {
+  const b = w.bbox ?? {}
+  const y0 = b.y0 ?? 0, y1 = b.y1 ?? 0, x0 = b.x0 ?? 0, x1 = b.x1 ?? 0
+  return { midY: (y0 + y1) / 2, midX: (x0 + x1) / 2 }
+}
+
 /**
- * Tesseract words 배열에서 "한 줄(박스)에 단어가 1개인" 경우만 추출 (긴 예문 제외).
+ * 이미지 상 "단어 아래 칸" — 한 칸에 단어 하나씩 들어간 줄만 추출.
+ * 순서: 무조건 위→아래가 아니라 위치 기준 — 먼저 Y(세로), 같으면 X(가로)로 읽는 순서.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
-  const sorted = [...words].filter((w) => w.text && w.text.trim())
-  if (!sorted.length) return []
-  sorted.sort((a, b) => {
+  const filtered = words.filter((w) => w.text && w.text.trim())
+  if (!filtered.length) return []
+  const lines = []
+  const sortedByY = [...filtered].sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
     return yA - yB
   })
-  const lines = []
-  let currentLine = [sorted[0]]
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = sorted[i - 1]
-    const curr = sorted[i]
+  let currentLine = [sortedByY[0]]
+  for (let i = 1; i < sortedByY.length; i++) {
+    const prev = sortedByY[i - 1]
+    const curr = sortedByY[i]
     const prevMidY = ((prev.bbox?.y0 ?? 0) + (prev.bbox?.y1 ?? 0)) / 2
     const currMidY = ((curr.bbox?.y0 ?? 0) + (curr.bbox?.y1 ?? 0)) / 2
     if (Math.abs(currMidY - prevMidY) <= LINE_THRESHOLD) {
@@ -84,15 +104,23 @@ function extractSingleWordsFromWords(words) {
     }
   }
   lines.push(currentLine)
-  const singleWords = []
+  const singleWordEntries = []
   lines.forEach((line) => {
     const wordsInLine = line.map((w) => (w.text || '').trim()).filter(Boolean)
     if (wordsInLine.length === 1) {
+      const raw = line[0]
       const cleaned = cleanWord(wordsInLine[0])
-      if (cleaned && isSingleEnglishWord(cleaned)) singleWords.push(cleaned)
+      if (!cleaned || !isSingleEnglishWord(cleaned)) return
+      if (shouldExcludeWord(cleaned)) return
+      singleWordEntries.push({ word: cleaned, ...getBboxCenter(raw) })
     }
   })
-  return singleWords.slice(0, MAX_WORDS_PER_PAGE)
+  singleWordEntries.sort((a, b) => {
+    const dY = a.midY - b.midY
+    if (Math.abs(dY) > LINE_THRESHOLD) return dY
+    return a.midX - b.midX
+  })
+  return singleWordEntries.map((e) => e.word).slice(0, MAX_WORDS_PER_PAGE)
 }
 
 export function useOcr() {
