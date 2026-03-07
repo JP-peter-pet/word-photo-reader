@@ -87,28 +87,36 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       if (!wordList?.length || !window.speechSynthesis) return
       stopSpeaking()
       setIsSpeaking(true)
-      let index = 0
+      let wordIndex = 0
+      let repeatIndex = 0
       const next = () => {
-        if (index >= wordList.length) {
+        if (wordIndex >= wordList.length) {
           setIsSpeaking(false)
           setCurrentWord(null)
           return
         }
-        const w = String(wordList[index]).trim()
+        const w = String(wordList[wordIndex]).trim()
         if (!w) {
-          index += 1
+          wordIndex += 1
+          repeatIndex = 0
           timeoutRef.current = setTimeout(next, 300)
           return
         }
         setCurrentWord(w)
         speakOnce(w, () => {
-          index += 1
-          timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
+          repeatIndex += 1
+          if (repeatIndex >= repeatCount) {
+            wordIndex += 1
+            repeatIndex = 0
+            timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
+          } else {
+            timeoutRef.current = setTimeout(next, delayMs)
+          }
         })
       }
       next()
     },
-    [speakOnce, stopSpeaking]
+    [speakOnce, stopSpeaking, repeatCount, delayMs]
   )
 
   return { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord }

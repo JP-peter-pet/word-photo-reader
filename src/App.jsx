@@ -60,10 +60,9 @@ export default function App() {
             <button
               type="button"
               className="btnTapToHear"
-              onClick={() => speakWordList(words)}
-              disabled={isSpeaking}
+              onClick={() => (isSpeaking ? stopSpeaking() : speakWordList(words))}
             >
-              tap to hear
+              {isSpeaking ? 'pause' : 'tap to hear'}
             </button>
           </>
         )}
