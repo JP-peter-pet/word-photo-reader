@@ -68,60 +68,39 @@ function dataUrlToPngBlob(dataUrl) {
   })
 }
 
+/** "단어" 열 = 페이지 왼쪽 영역(비율로 구분) */
+const LEFT_COLUMN_X_RATIO = 0.35
+
 /**
- * 이미지 상: 왼쪽 "단어" 열 단어 중, 우측(예문)에 쓰인 것만 하나씩 뽑아서 반환.
- * - 왼쪽 열 = 각 줄에서 가장 왼쪽(X 최소) 단어
- * - 우측에 쓰임 = 같은 줄에서 왼쪽이 아닌 위치에 그 단어가 등장
+ * 이미지 상: "단어" 밑에 있는 20개 단어만 가져옴.
+ * 왼쪽 열(단어 열)에 있는 영어 단어만, 위→아래 순서로 최대 20개.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
   const filtered = [...words].filter((w) => w.text && w.text.trim())
   if (!filtered.length) return []
-  filtered.sort((a, b) => {
+  const pageWidth = Math.max(...filtered.map((w) => w.bbox?.x1 ?? 0), 1)
+  const leftXMax = pageWidth * LEFT_COLUMN_X_RATIO
+  const midX = (w) => ((w.bbox?.x0 ?? 0) + (w.bbox?.x1 ?? 0)) / 2
+  const inLeftColumn = (w) => midX(w) < leftXMax
+
+  const leftWords = filtered.filter(inLeftColumn)
+  leftWords.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
-    return yA - yB
+    if (Math.abs(yA - yB) > LINE_THRESHOLD) return yA - yB
+    return (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0)
   })
-  const lines = []
-  let currentLine = [filtered[0]]
-  for (let i = 1; i < filtered.length; i++) {
-    const prev = filtered[i - 1]
-    const curr = filtered[i]
-    const prevMidY = ((prev.bbox?.y0 ?? 0) + (prev.bbox?.y1 ?? 0)) / 2
-    const currMidY = ((curr.bbox?.y0 ?? 0) + (curr.bbox?.y1 ?? 0)) / 2
-    if (Math.abs(currMidY - prevMidY) <= LINE_THRESHOLD) {
-      currentLine.push(curr)
-    } else {
-      lines.push(currentLine)
-      currentLine = [curr]
-    }
-  }
-  lines.push(currentLine)
-
-  // 우측(같은 줄에서 왼쪽이 아닌 칸)에 등장한 영어 단어 집합
-  const rightSideWords = new Set()
-  for (const line of lines) {
-    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
-    for (let i = 1; i < byX.length; i++) {
-      const raw = (byX[i].text || '').trim()
-      const cleaned = cleanWord(raw)
-      if (cleaned && isSingleEnglishWord(cleaned)) rightSideWords.add(cleaned.toLowerCase())
-    }
-  }
-
-  // 왼쪽 열 단어 중 우측에 쓰인 것만, 순서 유지·중복 없이
   const singleWords = []
   const seen = new Set()
-  for (const line of lines) {
-    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
-    const leftmost = byX[0]
-    const raw = (leftmost.text || '').trim()
+  for (const w of leftWords) {
+    const raw = (w.text || '').trim()
     if (!raw) continue
     const cleaned = cleanWord(raw)
     if (!cleaned || !isSingleEnglishWord(cleaned)) continue
     if (shouldExcludeWord(cleaned)) continue
     const key = cleaned.toLowerCase()
-    if (!rightSideWords.has(key) || seen.has(key)) continue
+    if (seen.has(key)) continue
     seen.add(key)
     singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
