@@ -41,6 +41,49 @@ body {
   line-height: 1.4;
 }
 
+.wordListInputWrap {
+  margin-bottom: 1.25rem;
+}
+
+.wordListInputLabel {
+  display: block;
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin-bottom: 0.35rem;
+}
+
+.wordListInput {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 80px;
+  margin-bottom: 0.5rem;
+}
+
+.wordListInput:focus {
+  outline: none;
+  border-color: #4a7fd4;
+}
+
+.btnUseWords {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.btnUseWords:hover {
+  background: #d1d5db;
+}
+
 .previewWrap {
   width: 100%;
   aspect-ratio: 4/3;
