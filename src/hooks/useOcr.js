@@ -4,8 +4,8 @@ import { createWorker } from 'tesseract.js'
 const LINE_THRESHOLD = 15
 const MAX_WORDS_PER_PAGE = 20
 
-/** 제외할 단어 (OCR 오인식 등). 대소문자 무시 */
-const EXCLUDED_WORDS = new Set(['TEE'])
+/** 제외할 단어 (헤더·OCR 오인식 등). 대소문자 무시 */
+const EXCLUDED_WORDS = new Set(['TEE', 'UNIT'])
 
 /** 뒤에 1이 붙은 단어(예: unit1), TEE 등 제외 */
 function shouldExcludeWord(word) {
@@ -69,14 +69,13 @@ function dataUrlToPngBlob(dataUrl) {
 }
 
 /**
- * 이미지 상: 세로 기준 — "한 줄에 단어 1개"인 줄만 단어 목록(20개)으로 인식.
- * 가로로 쭉 나열된 예문(한 줄에 단어 여러 개)은 전부 제외.
+ * 이미지 상: "단어" 열(가장 왼쪽)에만 있는 20개만 추출.
+ * 같은 줄의 한글 뜻·예문(오른쪽)은 제외 — 각 줄에서 가장 왼쪽(X 최소) 단어만 채택.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
   const filtered = [...words].filter((w) => w.text && w.text.trim())
   if (!filtered.length) return []
-  // Y 기준으로 줄 묶기 (같은 가로 줄 = 예문 또는 단어 한 칸)
   filtered.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
@@ -100,10 +99,12 @@ function extractSingleWordsFromWords(words) {
 
   const singleWords = []
   for (const line of lines) {
-    const wordsInLine = line.map((w) => (w.text || '').trim()).filter(Boolean)
-    // 한 줄에 단어 1개 → 세로 단어 목록. 2개 이상 → 예문이므로 전부 제외
-    if (wordsInLine.length !== 1) continue
-    const cleaned = cleanWord(wordsInLine[0])
+    // 같은 줄에서 가장 왼쪽 단어만 = "단어" 열. 나머지(뜻·예문) 제외
+    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
+    const leftmost = byX[0]
+    const raw = (leftmost.text || '').trim()
+    if (!raw) continue
+    const cleaned = cleanWord(raw)
     if (!cleaned || !isSingleEnglishWord(cleaned)) continue
     if (shouldExcludeWord(cleaned)) continue
     singleWords.push(cleaned)
