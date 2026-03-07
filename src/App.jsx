@@ -11,7 +11,7 @@ export default function App() {
   const [imageSrc, setImageSrc] = useState(null)
   const [words, setWords] = useState([])
   const { runOcr, status, isProcessing, isReady, setReadyStatus } = useOcr()
-  const { speakWord, stopSpeaking, isSpeaking } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
+  const { speakWord, stopSpeaking, isSpeaking, currentWord } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
 
   useEffect(() => {
     if (isReady) setReadyStatus()
@@ -39,7 +39,7 @@ export default function App() {
       <h1 className="title">Word Photo Reader</h1>
       <p className="subtitle">Upload an image or use your camera to snap a word.</p>
 
-      <Preview words={words} onWordClick={handleWordClick} isProcessing={isProcessing} />
+      <Preview words={words} onWordClick={handleWordClick} isProcessing={isProcessing} speakingWord={currentWord} />
 
       <ImageInput onImageSet={handleImageSet} />
 

@@ -1,4 +1,4 @@
-export default function Preview({ words, onWordClick, isProcessing }) {
+export default function Preview({ words, onWordClick, isProcessing, speakingWord }) {
   return (
     <div className={`previewWrap ${words.length > 0 ? 'hasWords' : ''}`}>
       {words.length > 0 ? (
@@ -7,8 +7,13 @@ export default function Preview({ words, onWordClick, isProcessing }) {
             <button
               key={`${w}-${i}`}
               type="button"
-              className={`wordChip color${i % 7}`}
-              onClick={() => onWordClick(w)}
+              className={`wordChip color${i % 7} ${speakingWord && String(w).trim().toLowerCase() === String(speakingWord).trim().toLowerCase() ? 'playing' : ''}`}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (onWordClick) onWordClick(w)
+              }}
+              aria-label={`Play ${w}`}
             >
               {w}
             </button>
