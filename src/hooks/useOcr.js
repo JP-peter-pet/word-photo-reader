@@ -1,11 +1,15 @@
 import { useState, useCallback, useRef } from 'react'
 import { createWorker } from 'tesseract.js'
+import wordList from 'an-array-of-english-words/index.json'
 
 const LINE_THRESHOLD = 15
 const MAX_WORDS_PER_PAGE = 20
 
-/** 제외할 단어 (헤더·OCR 할루시네이션·오인식). 대소문자 무시 — 실제 없는 단어 제거 */
-const EXCLUDED_WORDS = new Set(['TEE', 'UNIT', 'HALLUCI', 'HALUSHI', 'HALLUCINATION'])
+/** 실제 있는 영어 단어만 통과 — OCR 할루시네이션(gol 등) 자동 제거 */
+const VALID_ENGLISH_WORDS = new Set(wordList.map((w) => String(w).toLowerCase()))
+
+/** 제외할 단어 (헤더 등). 대소문자 무시 */
+const EXCLUDED_WORDS = new Set(['TEE', 'UNIT'])
 
 /** 뒤에 1이 붙은 단어(예: unit1), TEE 등 제외 */
 function shouldExcludeWord(word) {
@@ -121,6 +125,7 @@ function extractSingleWordsFromWords(words) {
   const seen = new Set()
   const addWord = (cleaned, key) => {
     if (!cleaned || !isSingleEnglishWord(cleaned) || shouldExcludeWord(cleaned) || seen.has(key)) return false
+    if (!VALID_ENGLISH_WORDS.has(key)) return false
     if (singleWords.length >= 1) {
       const prevKey = singleWords[singleWords.length - 1].toLowerCase()
       const pair = COMPOUNDS.find(([a, b]) => a === prevKey && b === key)
