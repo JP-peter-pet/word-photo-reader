@@ -69,14 +69,14 @@ function dataUrlToPngBlob(dataUrl) {
 }
 
 /**
- * 이미지 상: 단어 아래 20개 단어가 한 줄로 쭉 나열돼 있든, 한 칸씩 여러 줄이든
- * OCR로 읽은 단어 토큰을 위→아래·왼쪽→오른쪽 순서로 모아 최대 20개 반환.
+ * 이미지 상: 세로 기준 — "한 줄에 단어 1개"인 줄만 단어 목록(20개)으로 인식.
+ * 가로로 쭉 나열된 예문(한 줄에 단어 여러 개)은 전부 제외.
  */
 function extractSingleWordsFromWords(words) {
   if (!words || !words.length) return []
   const filtered = [...words].filter((w) => w.text && w.text.trim())
   if (!filtered.length) return []
-  // Y 기준으로 줄 묶기
+  // Y 기준으로 줄 묶기 (같은 가로 줄 = 예문 또는 단어 한 칸)
   filtered.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
@@ -100,17 +100,13 @@ function extractSingleWordsFromWords(words) {
 
   const singleWords = []
   for (const line of lines) {
-    // 같은 줄 안에서는 X(가로) 순서로 정렬 → 20개 단어가 한 줄일 때 왼쪽→오른쪽 순서
-    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
-    for (const w of byX) {
-      const raw = (w.text || '').trim()
-      if (!raw) continue
-      const cleaned = cleanWord(raw)
-      if (!cleaned || !isSingleEnglishWord(cleaned)) continue
-      if (shouldExcludeWord(cleaned)) continue
-      singleWords.push(cleaned)
-      if (singleWords.length >= MAX_WORDS_PER_PAGE) break
-    }
+    const wordsInLine = line.map((w) => (w.text || '').trim()).filter(Boolean)
+    // 한 줄에 단어 1개 → 세로 단어 목록. 2개 이상 → 예문이므로 전부 제외
+    if (wordsInLine.length !== 1) continue
+    const cleaned = cleanWord(wordsInLine[0])
+    if (!cleaned || !isSingleEnglishWord(cleaned)) continue
+    if (shouldExcludeWord(cleaned)) continue
+    singleWords.push(cleaned)
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
   }
   return singleWords.slice(0, MAX_WORDS_PER_PAGE)
