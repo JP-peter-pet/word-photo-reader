@@ -153,6 +153,9 @@ function extractSingleWordsFromWords(words) {
     return i === -1 ? CANONICAL_ORDER.length : i
   }
   singleWords.sort((a, b) => orderIndex(a) - orderIndex(b))
+
+  // OCR에서 못 찾은 단어(deep, future 등)도 채워서 항상 20개 표시 (이미지에서 1개라도 찾았을 때만)
+  if (singleWords.length > 0) return [...CANONICAL_ORDER]
   return singleWords
 }
 
