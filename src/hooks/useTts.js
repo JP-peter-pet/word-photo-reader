@@ -25,14 +25,17 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
   const runIdRef = useRef(0)
   const utteranceRef = useRef(null)
 
+  const [speechSupported, setSpeechSupported] = useState(() => typeof window !== 'undefined' && !!window.speechSynthesis)
+
   useEffect(() => {
     const syn = window.speechSynthesis
+    setSpeechSupported(!!syn)
     if (!syn) return
     const onVoicesChanged = () => { voicesReadyRef.current = true }
     if (syn.getVoices().length > 0) voicesReadyRef.current = true
     syn.addEventListener('voiceschanged', onVoicesChanged)
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && syn.paused) syn.resume?.()
+      if (document.visibilityState === 'visible' && typeof syn.resume === 'function' && syn.paused) syn.resume()
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
@@ -47,7 +50,9 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
-    window.speechSynthesis?.cancel()
+    try {
+      window.speechSynthesis?.cancel()
+    } catch (_) {}
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
       timeoutRef.current = null
@@ -59,9 +64,37 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
   }, [])
 
   const SAFETY_MS = 5000
-  const ENGINE_SETTLE_MS = 100
-  const WARMUP_TEXT = '\u00A0'
   const RESUME_INTERVAL_MS = 1400
+  const AFTER_PRIME_MS = 30
+
+  /** 모든 브라우저: 사용자 제스처와 같은 틱에서 첫 speak() 호출 (Chrome/iOS 정책). 빈 발화로 엔진 활성화. */
+  const PRIME_SAFETY_MS = 600
+  const primeSync = useCallback((onEnd) => {
+    const syn = window.speechSynthesis
+    if (!syn) {
+      onEnd?.()
+      return
+    }
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      if (tid) clearTimeout(tid)
+      onEnd?.()
+    }
+    let tid = setTimeout(finish, PRIME_SAFETY_MS)
+    try {
+      const u = new SpeechSynthesisUtterance('\u00A0')
+      if (typeof u.volume !== 'undefined') u.volume = 0.01
+      u.rate = 2
+      u.lang = LANG
+      u.onend = finish
+      u.onerror = finish
+      syn.speak(u)
+    } catch (_) {
+      finish()
+    }
+  }, [])
 
   const speakOnce = useCallback((word, onEnd) => {
     if (!word || !window.speechSynthesis) {
@@ -76,7 +109,8 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       if (safetyId) clearTimeout(safetyId)
       onEnd?.()
     }
-    const u = new SpeechSynthesisUtterance(String(word).trim())
+    const text = String(word).trim() + '\u00A0'
+    const u = new SpeechSynthesisUtterance(text)
     utteranceRef.current = u
     u.lang = LANG
     u.rate = 0.85
@@ -91,10 +125,22 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
 
   const speakWord = useCallback(
     (word) => {
-      stopSpeaking()
       const w = String(word).trim()
       if (!w) return
-      runIdRef.current += 1
+      if (isSpeaking) {
+        stopSpeaking()
+        runIdRef.current += 1
+      } else {
+        runIdRef.current += 1
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+      }
       const myRunId = runIdRef.current
       setCurrentWord(w)
       setIsSpeaking(true)
@@ -135,18 +181,35 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
           }
         })
       }
-      timeoutRef.current = setTimeout(next, ENGINE_SETTLE_MS)
+      primeSync(() => {
+        if (myRunId !== runIdRef.current) return
+        timeoutRef.current = setTimeout(next, AFTER_PRIME_MS)
+      })
     },
-    [repeatCount, delayMs, speakOnce, stopSpeaking]
+    [repeatCount, delayMs, speakOnce, stopSpeaking, primeSync, isSpeaking]
   )
+
+  const LIST_DELAY_MS = 1200
 
   const LIST_DELAY_MS = 1200
 
   const speakWordList = useCallback(
     (wordList) => {
       if (!wordList?.length || !window.speechSynthesis) return
-      stopSpeaking()
-      runIdRef.current += 1
+      if (isSpeaking) {
+        stopSpeaking()
+        runIdRef.current += 1
+      } else {
+        runIdRef.current += 1
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current)
+          timeoutRef.current = null
+        }
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+      }
       const myRunId = runIdRef.current
       const list = [...wordList]
       setIsSpeaking(true)
@@ -192,17 +255,13 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
           }
         })
       }
-      const startList = () => {
+      primeSync(() => {
         if (myRunId !== runIdRef.current) return
-        speakOnce(WARMUP_TEXT, () => {
-          if (myRunId !== runIdRef.current) return
-          timeoutRef.current = setTimeout(next, 80)
-        })
-      }
-      timeoutRef.current = setTimeout(startList, ENGINE_SETTLE_MS)
+        timeoutRef.current = setTimeout(next, AFTER_PRIME_MS)
+      })
     },
-    [speakOnce, stopSpeaking, repeatCount, delayMs]
+    [speakOnce, stopSpeaking, repeatCount, delayMs, primeSync, isSpeaking]
   )
 
-  return { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord }
+  return { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported }
 }

@@ -11,7 +11,7 @@ export default function App() {
   const [imageSrc, setImageSrc] = useState(null)
   const [words, setWords] = useState([])
   const { runOcr, status, isProcessing, isReady, setReadyStatus } = useOcr()
-  const { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
+  const { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
 
   useEffect(() => {
     if (isReady) setReadyStatus()
@@ -39,7 +39,7 @@ export default function App() {
       <h1 className="title">Word Photo Reader</h1>
       <p className="subtitle">Upload an image or use your camera to snap a word.</p>
 
-      <Preview words={words} onWordClick={handleWordClick} isProcessing={isProcessing} speakingWord={currentWord} />
+      <Preview words={words} onWordClick={handleWordClick} isProcessing={isProcessing} speakingWord={currentWord} speechSupported={speechSupported} />
 
       <ImageInput onImageSet={handleImageSet} />
 
@@ -60,6 +60,8 @@ export default function App() {
             <button
               type="button"
               className="btnTapToHear"
+              disabled={!speechSupported}
+              title={!speechSupported ? 'Voice playback is not supported in this browser.' : undefined}
               onClick={() => (isSpeaking ? stopSpeaking() : speakWordList(words))}
             >
               {isSpeaking ? 'pause' : 'tap to hear'}

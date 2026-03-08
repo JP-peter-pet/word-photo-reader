@@ -1,4 +1,4 @@
-export default function Preview({ words, onWordClick, isProcessing, speakingWord }) {
+export default function Preview({ words, onWordClick, isProcessing, speakingWord, speechSupported = true }) {
   return (
     <div className={`previewWrap ${words.length > 0 ? 'hasWords' : ''}`}>
       {words.length > 0 ? (
@@ -8,12 +8,14 @@ export default function Preview({ words, onWordClick, isProcessing, speakingWord
               key={`${w}-${i}`}
               type="button"
               className={`wordChip color${i % 7} ${speakingWord && String(w).trim().toLowerCase() === String(speakingWord).trim().toLowerCase() ? 'playing' : ''}`}
+              disabled={!speechSupported}
+              title={!speechSupported ? 'Voice not supported in this browser.' : undefined}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 if (onWordClick) onWordClick(w)
               }}
-              aria-label={`Play ${w}`}
+              aria-label={speechSupported ? `Play ${w}` : `${w} (voice not supported)`}
             >
               {w}
             </button>
