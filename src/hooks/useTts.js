@@ -191,8 +191,6 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
 
   const LIST_DELAY_MS = 1200
 
-  const LIST_DELAY_MS = 1200
-
   const speakWordList = useCallback(
     (wordList) => {
       if (!wordList?.length || !window.speechSynthesis) return
