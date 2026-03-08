@@ -2,24 +2,38 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   background: linear-gradient(135deg, #a8c5e8 0%, #e8dc98 50%, #f0e68c 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 .app {
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  padding: 2rem;
+  padding: 1.25rem;
   max-width: 420px;
   width: 100%;
+}
+
+@media (min-width: 480px) {
+  .app {
+    padding: 2rem;
+  }
 }
 
 .title {
@@ -27,18 +41,31 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   font-weight: 700;
   margin: 0 0 0.5rem 0;
   text-align: center;
 }
 
+@media (min-width: 480px) {
+  .title {
+    font-size: 1.75rem;
+  }
+}
+
 .subtitle {
   color: #6b7280;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   text-align: center;
-  margin: 0 0 1.5rem 0;
+  margin: 0 0 1.25rem 0;
   line-height: 1.4;
+}
+
+@media (min-width: 480px) {
+  .subtitle {
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
 }
 
 .wordListInputWrap {
@@ -86,6 +113,7 @@ body {
 
 .previewWrap {
   width: 100%;
+  min-height: 180px;
   aspect-ratio: 4/3;
   border: 2px dashed #d1d5db;
   border-radius: 12px;
@@ -100,10 +128,23 @@ body {
 .previewWrap.hasWords {
   border-style: solid;
   border-color: #e5e7eb;
-  padding: 1rem;
+  padding: 0.75rem;
   align-items: flex-start;
   justify-content: flex-start;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 480px) {
+  .previewWrap.hasWords {
+    padding: 1rem;
+  }
+}
+
+.previewWrap.hasImage {
+  aspect-ratio: 4/3;
+  min-height: 200px;
 }
 
 .previewPlaceholder {
@@ -120,6 +161,12 @@ body {
   width: 100%;
 }
 
+@media (max-width: 479px) {
+  .wordListPreview {
+    gap: 0.6rem;
+  }
+}
+
 .buttonsRow {
   display: flex;
   gap: 0.75rem;
@@ -128,6 +175,7 @@ body {
 
 .btn {
   flex: 1;
+  min-height: 48px;
   padding: 0.75rem 1rem;
   border: none;
   border-radius: 10px;
@@ -138,6 +186,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btnUpload {
@@ -160,6 +210,7 @@ body {
 
 .btnProcess {
   width: 100%;
+  min-height: 48px;
   padding: 0.75rem 1rem;
   background: #e5e7eb;
   color: #374151;
@@ -173,6 +224,8 @@ body {
   justify-content: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btnProcess:hover:not(:disabled) {
@@ -196,11 +249,11 @@ body {
 .status {
   background: #f3f4f6;
   border-radius: 8px;
-  padding: 0.6rem 1rem;
+  padding: 0.75rem 1rem;
   font-size: 0.85rem;
   color: #4b5563;
   text-align: center;
-  min-height: 2.5rem;
+  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -209,7 +262,9 @@ body {
 }
 
 .btnTapToHear {
-  padding: 0.4rem 0.9rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem 1rem;
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -218,6 +273,7 @@ body {
   background: linear-gradient(135deg, #4a7fd4 0%, #d4a84a 100%);
   color: #fff;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btnTapToHear:hover:not(:disabled) {
@@ -248,9 +304,10 @@ body {
 }
 
 .wordChip {
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
