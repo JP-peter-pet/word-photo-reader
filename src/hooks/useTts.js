@@ -151,7 +151,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
       if (safetyId) clearTimeout(safetyId)
       onAllEnd?.()
     }
-    const safetyId = setTimeout(finish, Math.min(SAFETY_MS * repeatCount, 15000))
+    const safetyId = setTimeout(finish, Math.min(SAFETY_MS * repeatCount, 8000))
     for (let i = 0; i < repeatCount; i++) {
       const u = new SpeechSynthesisUtterance(text)
       if (i === repeatCount - 1) utteranceRef.current = u
@@ -212,6 +212,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
   )
 
   const LIST_DELAY_MS = 1200
+  const RE_PRIME_EVERY_WORDS = 5
 
   const speakWordList = useCallback(
     (wordList) => {
@@ -265,12 +266,23 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
         if (myRunId !== runIdRef.current) return
         setCurrentWord(w)
         const repeatCount = getRepeatCount(w)
-        speakWordRepeats(w, repeatCount, () => {
-          if (myRunId !== runIdRef.current) return
-          wordIndex += 1
-          repeatIndex = 0
-          timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
-        })
+        const doSpeak = () => {
+          speakWordRepeats(w, repeatCount, () => {
+            if (myRunId !== runIdRef.current) return
+            wordIndex += 1
+            repeatIndex = 0
+            timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
+          })
+        }
+        const needRePrime = RE_PRIME_EVERY_WORDS > 0 && wordIndex > 0 && wordIndex % RE_PRIME_EVERY_WORDS === 0
+        if (needRePrime) {
+          primeSync(() => {
+            if (myRunId !== runIdRef.current) return
+            timeoutRef.current = setTimeout(doSpeak, 80)
+          })
+        } else {
+          doSpeak()
+        }
       }
       primeSync(() => {
         if (myRunId !== runIdRef.current) return
