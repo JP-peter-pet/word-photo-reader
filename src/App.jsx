@@ -4,7 +4,7 @@ import ImageInput from './components/ImageInput'
 import { useOcr } from './hooks/useOcr'
 import { useTts } from './hooks/useTts'
 
-const REPEAT_COUNT = 5
+const REPEAT_COUNT = 1
 const DELAY_MS = 2000
 
 export default function App() {
