@@ -7,6 +7,9 @@ const OCR_MODELS = {
   dictionaryPath: 'https://cdn.jsdelivr.net/npm/@gutenye/ocr-models@1.4.2/assets/ppocr_keys_v1.txt',
 }
 
+/** 6GB RAM 등 저사양에서 OCR/캔버스 메모리 절감용. 이보다 큰 이미지는 리사이즈됨. */
+const MAX_IMAGE_DIMENSION = 1600
+
 /** 단어 앞뒤 문장부호 제거 (angry? → angry, carpet. → carpet) */
 function cleanWord(text) {
   if (!text || typeof text !== 'string') return ''
@@ -28,21 +31,28 @@ async function ensureDataUrl(imageSrc) {
 
 /**
  * data URL → 캔버스로 그린 뒤 PNG data URL로 변환.
- * 크롬 등에서 특정 형식(HEIC, 일부 JPEG) 디코딩 실패 시에도 PNG로 통일해 OCR에 전달.
+ * maxDimension 지정 시 긴 변을 이 크기로 맞춰 리사이즈 (메모리 절감).
  */
-function dataUrlToPngDataUrl(dataUrl) {
+function dataUrlToPngDataUrl(dataUrl, maxDimension = 0) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
+      let w = img.naturalWidth
+      let h = img.naturalHeight
+      if (maxDimension > 0 && Math.max(w, h) > maxDimension) {
+        const scale = maxDimension / Math.max(w, h)
+        w = Math.round(w * scale)
+        h = Math.round(h * scale)
+      }
       const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
+      canvas.width = w
+      canvas.height = h
       const ctx = canvas.getContext('2d')
       if (!ctx) {
         reject(new Error('Canvas not supported'))
         return
       }
-      ctx.drawImage(img, 0, 0)
+      ctx.drawImage(img, 0, 0, w, h)
       try {
         resolve(canvas.toDataURL('image/png'))
       } catch (err) {
@@ -140,7 +150,7 @@ export function useOcr() {
       try {
         const ocr = await ensureOcr()
         const dataUrl = await ensureDataUrl(imageSrc)
-        const pngDataUrl = await dataUrlToPngDataUrl(dataUrl)
+        const pngDataUrl = await dataUrlToPngDataUrl(dataUrl, MAX_IMAGE_DIMENSION)
         const lines = await ocr.detect(pngDataUrl)
         const rawWords = linesToWords(lines)
         const allWords = extractAllWords(rawWords)
