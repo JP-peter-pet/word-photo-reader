@@ -27,6 +27,34 @@ async function ensureDataUrl(imageSrc) {
 }
 
 /**
+ * data URL → 캔버스로 그린 뒤 PNG data URL로 변환.
+ * 크롬 등에서 특정 형식(HEIC, 일부 JPEG) 디코딩 실패 시에도 PNG로 통일해 OCR에 전달.
+ */
+function dataUrlToPngDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Canvas not supported'))
+        return
+      }
+      ctx.drawImage(img, 0, 0)
+      try {
+        resolve(canvas.toDataURL('image/png'))
+      } catch (err) {
+        reject(err)
+      }
+    }
+    img.onerror = () => reject(new Error('The source image cannot be decoded.'))
+    img.src = dataUrl
+  })
+}
+
+/**
  * PaddleOCR Line[] → { text, bbox }[]. 한 줄은 공백이 있어도 하나의 단어로 취급.
  */
 function linesToWords(lines) {
@@ -112,7 +140,8 @@ export function useOcr() {
       try {
         const ocr = await ensureOcr()
         const dataUrl = await ensureDataUrl(imageSrc)
-        const lines = await ocr.detect(dataUrl)
+        const pngDataUrl = await dataUrlToPngDataUrl(dataUrl)
+        const lines = await ocr.detect(pngDataUrl)
         const rawWords = linesToWords(lines)
         const allWords = extractAllWords(rawWords)
         setStatus(

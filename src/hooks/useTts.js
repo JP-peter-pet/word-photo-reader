@@ -2,6 +2,13 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 
 const LANG = 'en-US'
 
+/** 크롬 여부 (resume 주기 호출은 Safari/iOS용, 크롬에서는 끄기) */
+function isChrome() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent
+  return /Chrome|Chromium/.test(ua) && !/Edg|OPR|Samsung Browser|FxiOS/.test(ua)
+}
+
 /** en-US 우선, 품질 좋은 음성(Google/Microsoft/Apple 기본) 우선 선택 */
 function getEnglishVoice() {
   const voices = window.speechSynthesis?.getVoices() ?? []
@@ -63,9 +70,9 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
     setCurrentWord(null)
   }, [])
 
-  const SAFETY_MS = 5000
+  const SAFETY_MS = isChrome() ? 3500 : 5000
   const RESUME_INTERVAL_MS = 1400
-  const AFTER_PRIME_MS = 30
+  const AFTER_PRIME_MS = isChrome() ? 50 : 30
 
   /** 모든 브라우저: 사용자 제스처와 같은 틱에서 첫 speak() 호출 (Chrome/iOS 정책). 빈 발화로 엔진 활성화. */
   const PRIME_SAFETY_MS = 600
@@ -145,9 +152,10 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       setCurrentWord(w)
       setIsSpeaking(true)
       const syn = window.speechSynthesis
-      if (syn && !intervalRef.current) {
+      const useResumeInterval = syn && !isChrome() && !intervalRef.current
+      if (useResumeInterval) {
         intervalRef.current = setInterval(() => {
-          if (syn.paused) syn.resume?.()
+          if (syn.paused && typeof syn.resume === 'function') syn.resume()
         }, RESUME_INTERVAL_MS)
       }
       let count = 0
@@ -212,9 +220,10 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       const list = [...wordList]
       setIsSpeaking(true)
       const syn = window.speechSynthesis
-      if (syn && !intervalRef.current) {
+      const useResumeInterval = syn && !isChrome() && !intervalRef.current
+      if (useResumeInterval) {
         intervalRef.current = setInterval(() => {
-          if (syn.paused) syn.resume?.()
+          if (syn.paused && typeof syn.resume === 'function') syn.resume()
         }, RESUME_INTERVAL_MS)
       }
       let wordIndex = 0
