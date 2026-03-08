@@ -134,36 +134,29 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
     window.speechSynthesis.speak(u)
   }, [])
 
-  /** 한 단어를 N번 연속 큐에 넣어 재생. 반복마다 setTimeout 쓰지 않아 끊김 감소. */
-  const speakWordRepeats = useCallback((word, repeatCount, onAllEnd) => {
-    const syn = window.speechSynthesis
-    if (!word || !syn || repeatCount < 1) {
+  /** 한 단어를 N번 재생. 한 번에 하나씩만 재생해 메모리 사용 최소화. 정지 시 runId 불일치로 체인 중단. */
+  const speakWordRepeats = useCallback((word, repeatCount, onAllEnd, runIdRefArg, currentRunId) => {
+    if (!word || repeatCount < 1) {
       onAllEnd?.()
       return
     }
-    const text = String(word).trim() + '\u00A0'
-    const voice = getEnglishVoice()
-    let done = false
-    const finish = () => {
-      if (done) return
-      done = true
-      utteranceRef.current = null
-      if (safetyId) clearTimeout(safetyId)
-      onAllEnd?.()
+    const ref = runIdRefArg ?? runIdRef
+    const myRunId = currentRunId ?? runIdRef.current
+    let count = 0
+    const next = () => {
+      if (ref.current !== myRunId) {
+        onAllEnd?.()
+        return
+      }
+      count += 1
+      if (count > repeatCount) {
+        onAllEnd?.()
+        return
+      }
+      speakOnce(word, next)
     }
-    const safetyId = setTimeout(finish, Math.min(SAFETY_MS * repeatCount, 8000))
-    for (let i = 0; i < repeatCount; i++) {
-      const u = new SpeechSynthesisUtterance(text)
-      if (i === repeatCount - 1) utteranceRef.current = u
-      u.lang = LANG
-      u.rate = 0.85
-      u.pitch = 1
-      if (voice) u.voice = voice
-      u.onerror = finish
-      if (i === repeatCount - 1) u.onend = finish
-      syn.speak(u)
-    }
-  }, [])
+    next()
+  }, [speakOnce])
 
   const speakWord = useCallback(
     (word) => {
@@ -205,7 +198,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
       }
       primeSync(() => {
         if (myRunId !== runIdRef.current) return
-        speakWordRepeats(w, repeatCount, onDone)
+        speakWordRepeats(w, repeatCount, onDone, runIdRef, myRunId)
       })
     },
     [speakWordRepeats, stopSpeaking, primeSync, isSpeaking, getRepeatCount]
@@ -233,7 +226,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
         }
       }
       const myRunId = runIdRef.current
-      const list = [...wordList]
+      const list = wordList
       setIsSpeaking(true)
       const syn = window.speechSynthesis
       const useResumeInterval = syn && !isChrome() && !intervalRef.current
@@ -273,7 +266,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
             wordIndex += 1
             repeatIndex = 0
             timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
-          })
+          }, runIdRef, myRunId)
         }
         const needRePrime = RE_PRIME_EVERY_WORDS > 0 && wordIndex > 0 && wordIndex % RE_PRIME_EVERY_WORDS === 0
         if (needRePrime) {
