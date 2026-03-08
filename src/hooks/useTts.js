@@ -28,7 +28,14 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
     const onVoicesChanged = () => { voicesReadyRef.current = true }
     if (syn.getVoices().length > 0) voicesReadyRef.current = true
     syn.addEventListener('voiceschanged', onVoicesChanged)
-    return () => syn.removeEventListener('voiceschanged', onVoicesChanged)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && syn.paused) syn.resume?.()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      syn.removeEventListener('voiceschanged', onVoicesChanged)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   const stopSpeaking = useCallback(() => {
@@ -42,10 +49,21 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
     setCurrentWord(null)
   }, [])
 
+  const SAFETY_MS = 12000
+  const ENGINE_SETTLE_MS = 220
+  const WARMUP_TEXT = '\u00A0'
+
   const speakOnce = useCallback((word, onEnd) => {
     if (!word || !window.speechSynthesis) {
       onEnd?.()
       return
+    }
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      if (safetyId) clearTimeout(safetyId)
+      onEnd?.()
     }
     const u = new SpeechSynthesisUtterance(String(word).trim())
     u.lang = LANG
@@ -53,8 +71,9 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
     u.pitch = 1
     const voice = getEnglishVoice()
     if (voice) u.voice = voice
-    u.onend = () => onEnd?.()
-    u.onerror = () => onEnd?.()
+    u.onend = finish
+    u.onerror = finish
+    const safetyId = setTimeout(finish, SAFETY_MS)
     window.speechSynthesis.speak(u)
   }, [])
 
@@ -66,7 +85,6 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       setCurrentWord(w)
       setIsSpeaking(true)
       let count = 0
-
       const next = () => {
         count += 1
         if (count > repeatCount) {
@@ -83,7 +101,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
           }
         })
       }
-      next()
+      timeoutRef.current = setTimeout(next, ENGINE_SETTLE_MS)
     },
     [repeatCount, delayMs, speakOnce, stopSpeaking]
   )
@@ -122,7 +140,12 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
           }
         })
       }
-      next()
+      const startList = () => {
+        speakOnce(WARMUP_TEXT, () => {
+          timeoutRef.current = setTimeout(next, 80)
+        })
+      }
+      timeoutRef.current = setTimeout(startList, ENGINE_SETTLE_MS)
     },
     [speakOnce, stopSpeaking, repeatCount, delayMs]
   )
