@@ -143,12 +143,13 @@ function extractSingleWordsFromWords(words) {
   }
   for (const line of lines) {
     const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
-    const w = byX[0]
-    const raw = (w.text || '').trim()
-    if (!raw) continue
-    const cleaned = cleanWord(raw)
-    const key = cleaned.toLowerCase()
-    addWord(cleaned, key)
+    for (const w of byX) {
+      const raw = (w.text || '').trim()
+      if (!raw) continue
+      const cleaned = cleanWord(raw)
+      const key = cleaned.toLowerCase()
+      if (addWord(cleaned, key)) break
+    }
     if (singleWords.length >= MAX_WORDS_PER_PAGE) break
   }
   // 한 줄에 한 단어로 0개면 → 왼쪽 영역 전체에서 순서대로 수집 (폴백)
