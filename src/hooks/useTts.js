@@ -2,6 +2,15 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 
 const LANG = 'en-US'
 
+/** TTS 엔진이 필터링해 멈추는 단어 → 글자 단위로 읽히도록 (예: dirty → "d i r t y") */
+const SPELL_OUT_WORDS = new Set(['dirty', 'damn', 'hell', 'stupid', 'crap', 'suck', 'sucks'])
+
+function getSpeakableText(word) {
+  const w = String(word).trim().toLowerCase()
+  if (SPELL_OUT_WORDS.has(w)) return w.split('').join(' ')
+  return String(word).trim()
+}
+
 /** 크롬 여부 (resume 주기 호출은 Safari/iOS용, 크롬에서는 끄기) */
 function isChrome() {
   if (typeof navigator === 'undefined') return false
@@ -120,7 +129,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
       if (safetyId) clearTimeout(safetyId)
       onEnd?.()
     }
-    const text = String(word).trim() + '\u00A0'
+    const text = getSpeakableText(word) + '\u00A0'
     const u = new SpeechSynthesisUtterance(text)
     utteranceRef.current = u
     u.lang = LANG
@@ -141,7 +150,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
       onAllEnd?.()
       return
     }
-    const text = String(word).trim() + '\u00A0'
+    const text = getSpeakableText(word) + '\u00A0'
     const voice = getEnglishVoice()
     let done = false
     const finish = () => {
