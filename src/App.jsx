@@ -4,14 +4,18 @@ import ImageInput from './components/ImageInput'
 import { useOcr } from './hooks/useOcr'
 import { useTts } from './hooks/useTts'
 
-const REPEAT_COUNT = 1
 const DELAY_MS = 2000
 
 export default function App() {
   const [imageSrc, setImageSrc] = useState(null)
   const [words, setWords] = useState([])
   const { runOcr, status, isProcessing, isReady, setReadyStatus } = useOcr()
-  const { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported } = useTts({ repeatCount: REPEAT_COUNT, delayMs: DELAY_MS })
+  const { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported } = useTts({
+    repeatCountShort: 3,
+    repeatCountLong: 5,
+    lengthThreshold: 5,
+    delayMs: DELAY_MS,
+  })
 
   useEffect(() => {
     if (isReady) setReadyStatus()

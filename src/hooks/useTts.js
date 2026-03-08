@@ -22,7 +22,11 @@ function getEnglishVoice() {
   return en[0]
 }
 
-export function useTts({ repeatCount = 5, delayMs = 2000 }) {
+export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThreshold = 5, delayMs = 2000 }) {
+  const getRepeatCount = useCallback(
+    (word) => (String(word).trim().length < lengthThreshold ? repeatCountShort : repeatCountLong),
+    [repeatCountShort, repeatCountLong, lengthThreshold]
+  )
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [currentWord, setCurrentWord] = useState(null)
   const queueRef = useRef([])
@@ -149,6 +153,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
         }
       }
       const myRunId = runIdRef.current
+      const repeatCount = getRepeatCount(w)
       setCurrentWord(w)
       setIsSpeaking(true)
       const syn = window.speechSynthesis
@@ -194,7 +199,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
         timeoutRef.current = setTimeout(next, AFTER_PRIME_MS)
       })
     },
-    [repeatCount, delayMs, speakOnce, stopSpeaking, primeSync, isSpeaking]
+    [delayMs, speakOnce, stopSpeaking, primeSync, isSpeaking, getRepeatCount]
   )
 
   const LIST_DELAY_MS = 1200
@@ -250,6 +255,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
         }
         if (myRunId !== runIdRef.current) return
         setCurrentWord(w)
+        const repeatCount = getRepeatCount(w)
         speakOnce(w, () => {
           if (myRunId !== runIdRef.current) return
           repeatIndex += 1
@@ -267,7 +273,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
         timeoutRef.current = setTimeout(next, AFTER_PRIME_MS)
       })
     },
-    [speakOnce, stopSpeaking, repeatCount, delayMs, primeSync, isSpeaking]
+    [speakOnce, stopSpeaking, delayMs, primeSync, isSpeaking, getRepeatCount]
   )
 
   return { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported }
