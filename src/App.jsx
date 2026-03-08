@@ -11,8 +11,8 @@ export default function App() {
   const [words, setWords] = useState([])
   const { runOcr, status, isProcessing, isReady, setReadyStatus } = useOcr()
   const { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported } = useTts({
-    repeatCountShort: 3,
-    repeatCountLong: 5,
+    repeatCountShort: 2,
+    repeatCountLong: 4,
     lengthThreshold: 5,
     delayMs: DELAY_MS,
   })
