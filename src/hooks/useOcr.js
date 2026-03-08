@@ -1,5 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
-import { createWorker } from 'tesseract.js'
+import Ocr from '@gutenye/ocr-browser'
+
+const OCR_MODELS = {
+  detectionPath: 'https://cdn.jsdelivr.net/npm/@gutenye/ocr-models@1.4.2/assets/ch_PP-OCRv4_det_infer.onnx',
+  recognitionPath: 'https://cdn.jsdelivr.net/npm/@gutenye/ocr-models@1.4.2/assets/ch_PP-OCRv4_rec_infer.onnx',
+  dictionaryPath: 'https://cdn.jsdelivr.net/npm/@gutenye/ocr-models@1.4.2/assets/ppocr_keys_v1.txt',
+}
 
 /** 단어 앞뒤 문장부호 제거 (angry? → angry, carpet. → carpet) */
 function cleanWord(text) {
@@ -24,41 +30,42 @@ async function ensureDataUrl(imageSrc) {
 }
 
 /**
- * data URL → 캔버스로 그린 뒤 PNG Blob 반환.
- * 브라우저가 디코딩한 뒤 다시 PNG로 인코딩해, 포맷/손상 이슈를 피함.
+ * PaddleOCR Line[] → { text, bbox }[] (한 줄에 여러 단어면 쪼개서 같은 bbox 부여)
  */
-function dataUrlToPngBlob(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
-        reject(new Error('Canvas not supported'))
-        return
+function linesToWords(lines) {
+  if (!lines || !lines.length) return []
+  const words = []
+  for (const line of lines) {
+    const text = (line.text || '').trim()
+    if (!text) continue
+    const box = line.box
+    let x0 = 0, y0 = 0, x1 = 0, y1 = 0
+    if (box && Array.isArray(box) && box.length) {
+      const flat = typeof box[0] === 'number' ? box : box.flat()
+      const xs = flat.filter((_, i) => i % 2 === 0)
+      const ys = flat.filter((_, i) => i % 2 === 1)
+      if (xs.length && ys.length) {
+        x0 = Math.min(...xs)
+        y0 = Math.min(...ys)
+        x1 = Math.max(...xs)
+        y1 = Math.max(...ys)
       }
-      ctx.drawImage(img, 0, 0)
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
-        'image/png',
-        0.95
-      )
     }
-    img.onerror = () => reject(new Error('Failed to load image'))
-    img.src = dataUrl
-  })
+    const bbox = { x0, y0, x1, y1 }
+    for (const part of text.split(/\s+/)) {
+      if (part) words.push({ text: part, bbox })
+    }
+  }
+  return words
 }
 
 /**
- * OCR 결과에서 모든 단어를 읽기 순서(위→아래, 왼→오)로 수집. 중복(대소문자 무시) 제거만 함.
+ * OCR 결과에서 모든 단어를 읽기 순서(위→아래, 왼→오)로 수집. 중복(대소문자 무시) 제거 + 복합어 합치기.
  */
 function extractAllWords(words) {
   if (!words || !words.length) return []
   const filtered = [...words].filter((w) => w.text && String(w.text).trim())
   if (!filtered.length) return []
-  // 읽기 순서: Y(세로) 먼저, 그다음 X(가로)
   filtered.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
@@ -73,7 +80,6 @@ function extractAllWords(words) {
     const cleaned = cleanWord(raw)
     if (!cleaned) continue
     const key = cleaned.toLowerCase()
-    // 연달아 나온 두 단어가 복합어면 하나로 합침
     if (result.length >= 1) {
       const prevKey = result[result.length - 1].toLowerCase()
       const pair = COMPOUNDS.find(([a, b]) => a === prevKey && b === key)
@@ -99,25 +105,17 @@ export function useOcr() {
   const [status, setStatus] = useState('Initializing OCR engine...')
   const [isProcessing, setIsProcessing] = useState(false)
   const [isReady, setIsReady] = useState(false)
-  const workerRef = useRef(null)
+  const ocrRef = useRef(null)
 
-  const ensureWorker = useCallback(async () => {
-    if (workerRef.current) return workerRef.current
-    setStatus('Initializing OCR engine...')
+  const ensureOcr = useCallback(async () => {
+    if (ocrRef.current) return ocrRef.current
+    setStatus('Loading OCR engine (PaddleOCR)...')
     try {
-      const worker = await createWorker('eng', 1, {
-        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
-        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',
-        logger: (m) => {
-          if (m.status === 'loading tesseract core' || m.status === 'loading language traineddata') {
-            setStatus(`Loading OCR: ${m.status}...`)
-          }
-        },
-      })
-      workerRef.current = worker
+      const ocr = await Ocr.create({ models: OCR_MODELS })
+      ocrRef.current = ocr
       setIsReady(true)
       setStatus('Upload an image or take a photo, then tap Process Image.')
-      return worker
+      return ocr
     } catch (e) {
       const msg = e?.message || String(e)
       setStatus('Error: ' + (msg || 'Failed to load OCR engine.'))
@@ -131,11 +129,10 @@ export function useOcr() {
       setIsProcessing(true)
       setStatus('Processing...')
       try {
-        const worker = await ensureWorker()
+        const ocr = await ensureOcr()
         const dataUrl = await ensureDataUrl(imageSrc)
-        const imageBlob = await dataUrlToPngBlob(dataUrl)
-        const { data } = await worker.recognize(imageBlob)
-        const rawWords = data?.words ?? []
+        const lines = await ocr.detect(dataUrl)
+        const rawWords = linesToWords(lines)
         const allWords = extractAllWords(rawWords)
         setStatus(
           allWords.length
@@ -147,15 +144,12 @@ export function useOcr() {
         const msg = e?.message || e?.toString?.() || 'Processing failed.'
         setStatus('Error: ' + msg)
         console.error('OCR error:', e)
-        if (msg.includes('read image') && typeof window !== 'undefined') {
-          console.error('Tip: If this happens only on the deployed site, Tesseract may need custom workerPath/corePath. See DEPLOY.md')
-        }
         return []
       } finally {
         setIsProcessing(false)
       }
     },
-    [ensureWorker]
+    [ensureOcr]
   )
 
   const setReadyStatus = useCallback(() => {

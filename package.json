@@ -12,11 +12,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "an-array-of-english-words": "^2.0.0",
+    "@gutenye/ocr-browser": "^1.4.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-webcam": "^7.2.0",
-    "tesseract.js": "^5.1.0"
+    "react-webcam": "^7.2.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
