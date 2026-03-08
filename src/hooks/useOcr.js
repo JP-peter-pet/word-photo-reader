@@ -13,9 +13,6 @@ function cleanWord(text) {
   return text.trim().replace(/^[\s.,?!;:'"()\[\]-]+|[\s.,?!;:'"()\[\]-]+$/g, '')
 }
 
-/** 연달아 나오면 한 개로 합칠 복합어 [앞, 뒤]. 소문자로 비교 */
-const COMPOUNDS = [['swimming', 'pad']]
-
 /** blob: URL이면 fetch 후 data URL로 변환. */
 async function ensureDataUrl(imageSrc) {
   if (typeof imageSrc !== 'string' || !imageSrc.startsWith('blob:')) return imageSrc
@@ -30,13 +27,13 @@ async function ensureDataUrl(imageSrc) {
 }
 
 /**
- * PaddleOCR Line[] → { text, bbox }[] (한 줄에 여러 단어면 쪼개서 같은 bbox 부여)
+ * PaddleOCR Line[] → { text, bbox }[]. 한 줄은 공백이 있어도 하나의 단어로 취급.
  */
 function linesToWords(lines) {
   if (!lines || !lines.length) return []
   const words = []
   for (const line of lines) {
-    const text = (line.text || '').trim()
+    const text = (line.text || '').trim().replace(/\s+/g, ' ')
     if (!text) continue
     const box = line.box
     let x0 = 0, y0 = 0, x1 = 0, y1 = 0
@@ -52,15 +49,13 @@ function linesToWords(lines) {
       }
     }
     const bbox = { x0, y0, x1, y1 }
-    for (const part of text.split(/\s+/)) {
-      if (part) words.push({ text: part, bbox })
-    }
+    words.push({ text, bbox })
   }
   return words
 }
 
 /**
- * OCR 결과에서 모든 단어를 읽기 순서(위→아래, 왼→오)로 수집. 중복(대소문자 무시) 제거 + 복합어 합치기.
+ * OCR 결과를 읽기 순서(위→아래, 왼→오)로 정렬하고 중복(대소문자 무시) 제거.
  */
 function extractAllWords(words) {
   if (!words || !words.length) return []
@@ -80,20 +75,6 @@ function extractAllWords(words) {
     const cleaned = cleanWord(raw)
     if (!cleaned) continue
     const key = cleaned.toLowerCase()
-    if (result.length >= 1) {
-      const prevKey = result[result.length - 1].toLowerCase()
-      const pair = COMPOUNDS.find(([a, b]) => a === prevKey && b === key)
-      if (pair) {
-        result.pop()
-        seen.delete(prevKey)
-        const compound = pair[0] + ' ' + pair[1]
-        if (!seen.has(compound)) {
-          seen.add(compound)
-          result.push(compound)
-        }
-        continue
-      }
-    }
     if (seen.has(key)) continue
     seen.add(key)
     result.push(cleaned)
