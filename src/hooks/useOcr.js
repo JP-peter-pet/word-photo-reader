@@ -1,23 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
 import { createWorker } from 'tesseract.js'
-import wordList from 'an-array-of-english-words/index.json'
-
-const LINE_THRESHOLD = 15
-const MAX_WORDS_PER_PAGE = 20
-
-/** 실제 있는 영어 단어만 통과 — OCR 할루시네이션(gol 등) 자동 제거 */
-const VALID_ENGLISH_WORDS = new Set(wordList.map((w) => String(w).toLowerCase()))
-
-/** 제외할 단어 (헤더 등). 대소문자 무시 */
-const EXCLUDED_WORDS = new Set(['TEE', 'UNIT'])
-
-/** 뒤에 1이 붙은 단어(예: unit1), TEE 등 제외 */
-function shouldExcludeWord(word) {
-  if (!word || word.length < 2) return true
-  if (/1$/.test(word)) return true
-  if (EXCLUDED_WORDS.has(word.toUpperCase())) return true
-  return false
-}
 
 /** 단어 앞뒤 문장부호 제거 (angry? → angry, carpet. → carpet) */
 function cleanWord(text) {
@@ -25,11 +7,8 @@ function cleanWord(text) {
   return text.trim().replace(/^[\s.,?!;:'"()\[\]-]+|[\s.,?!;:'"()\[\]-]+$/g, '')
 }
 
-/** 표에서 "한 칸에 영어 1단어"인지: 영문만, 3자 이상 (re·ca 같은 조각 제외) */
-function isSingleEnglishWord(word) {
-  if (!word || word.length < 3) return false
-  return /^[a-zA-Z]+$/.test(word)
-}
+/** 연달아 나오면 한 개로 합칠 복합어 [앞, 뒤]. 소문자로 비교 */
+const COMPOUNDS = [['swimming', 'pad']]
 
 /** blob: URL이면 fetch 후 data URL로 변환. */
 async function ensureDataUrl(imageSrc) {
@@ -72,119 +51,48 @@ function dataUrlToPngBlob(dataUrl) {
   })
 }
 
-/** 실제 사진의 단어 열 — 왼쪽 영역 (비율 넓혀서 인식 개선) */
-const LEFT_COLUMN_X_RATIO = 0.45
-
-/** 연달아 나오면 한 개로 합칠 복합 단어 [앞, 뒤]. 소문자로 비교 */
-const COMPOUNDS = [['swimming', 'pad']]
-
-/** 표시 순서 (리스트 순서대로). 복합명사 swimming pad는 한 항목 */
-const CANONICAL_ORDER = [
-  'belt', 'bottom', 'deep', 'float', 'future', 'get', 'high', 'level', 'nervous',
-  'practice', 'rank', 'swimming pad', 'strong', 'tomorrow', 'scared', 'late',
-  'stand', 'tell', 'bad', 'show',
-]
-
 /**
- * 사진에서만: 왼쪽 영역을 줄 단위로 보고, 각 줄에서 가장 왼쪽 단어 1개만 수집 (= 단어 열만).
- * 예문·헤더·노이즈 제외. 영문 1단어·제외어·복합어 합치기, 최대 20개.
+ * OCR 결과에서 모든 단어를 읽기 순서(위→아래, 왼→오)로 수집. 중복(대소문자 무시) 제거만 함.
  */
-function extractSingleWordsFromWords(words) {
+function extractAllWords(words) {
   if (!words || !words.length) return []
-  const filtered = [...words].filter((w) => w.text && w.text.trim())
+  const filtered = [...words].filter((w) => w.text && String(w.text).trim())
   if (!filtered.length) return []
-  const pageWidth = Math.max(...filtered.map((w) => w.bbox?.x1 ?? 0), 1)
-  const leftXMax = pageWidth * LEFT_COLUMN_X_RATIO
-  const midX = (w) => ((w.bbox?.x0 ?? 0) + (w.bbox?.x1 ?? 0)) / 2
-  const inLeftColumn = (w) => midX(w) < leftXMax
-  let leftWords = filtered.filter(inLeftColumn)
-  if (leftWords.length === 0) leftWords = filtered
-  leftWords.sort((a, b) => {
+  // 읽기 순서: Y(세로) 먼저, 그다음 X(가로)
+  filtered.sort((a, b) => {
     const yA = (a.bbox?.y0 ?? 0) + (a.bbox?.y1 ?? 0)
     const yB = (b.bbox?.y0 ?? 0) + (b.bbox?.y1 ?? 0)
-    if (Math.abs(yA - yB) > LINE_THRESHOLD) return yA - yB
+    if (Math.abs(yA - yB) > 15) return yA - yB
     return (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0)
   })
-  // 줄 묶기 → 각 줄에서 가장 왼쪽 단어 1개만 시도
-  const lines = []
-  let currentLine = [leftWords[0]]
-  for (let i = 1; i < leftWords.length; i++) {
-    const prev = leftWords[i - 1]
-    const curr = leftWords[i]
-    const prevMidY = ((prev.bbox?.y0 ?? 0) + (prev.bbox?.y1 ?? 0)) / 2
-    const currMidY = ((curr.bbox?.y0 ?? 0) + (curr.bbox?.y1 ?? 0)) / 2
-    if (Math.abs(currMidY - prevMidY) <= LINE_THRESHOLD) {
-      currentLine.push(curr)
-    } else {
-      lines.push(currentLine)
-      currentLine = [curr]
-    }
-  }
-  lines.push(currentLine)
-  const singleWords = []
+  const result = []
   const seen = new Set()
-  const addWord = (cleaned, key) => {
-    if (!cleaned || !isSingleEnglishWord(cleaned) || shouldExcludeWord(cleaned) || seen.has(key)) return false
-    if (!VALID_ENGLISH_WORDS.has(key)) return false
-    if (singleWords.length >= 1) {
-      const prevKey = singleWords[singleWords.length - 1].toLowerCase()
+  for (const w of filtered) {
+    const raw = String(w.text).trim()
+    if (!raw) continue
+    const cleaned = cleanWord(raw)
+    if (!cleaned) continue
+    const key = cleaned.toLowerCase()
+    // 연달아 나온 두 단어가 복합어면 하나로 합침
+    if (result.length >= 1) {
+      const prevKey = result[result.length - 1].toLowerCase()
       const pair = COMPOUNDS.find(([a, b]) => a === prevKey && b === key)
       if (pair) {
-        singleWords.pop()
+        result.pop()
         seen.delete(prevKey)
-        singleWords.push(pair[0] + ' ' + pair[1])
-        seen.add(pair[0] + ' ' + pair[1])
-        return true
+        const compound = pair[0] + ' ' + pair[1]
+        if (!seen.has(compound)) {
+          seen.add(compound)
+          result.push(compound)
+        }
+        continue
       }
     }
+    if (seen.has(key)) continue
     seen.add(key)
-    singleWords.push(cleaned)
-    return true
+    result.push(cleaned)
   }
-  for (const line of lines) {
-    const byX = [...line].sort((a, b) => (a.bbox?.x0 ?? 0) - (b.bbox?.x0 ?? 0))
-    for (const w of byX) {
-      const raw = (w.text || '').trim()
-      if (!raw) continue
-      const cleaned = cleanWord(raw)
-      const key = cleaned.toLowerCase()
-      if (addWord(cleaned, key)) break
-    }
-    if (singleWords.length >= MAX_WORDS_PER_PAGE) break
-  }
-  // 한 줄에 한 단어로 0개면 → 왼쪽 영역 전체에서 순서대로 수집 (폴백)
-  if (singleWords.length === 0) {
-    for (const w of leftWords) {
-      const raw = (w.text || '').trim()
-      if (!raw) continue
-      const cleaned = cleanWord(raw)
-      const key = cleaned.toLowerCase()
-      addWord(cleaned, key)
-      if (singleWords.length >= MAX_WORDS_PER_PAGE) break
-    }
-  }
-
-  // 복합명사: swimming과 pad가 따로 있으면 한 단어 "swimming pad"로 합침
-  const hasSwimming = singleWords.some((w) => w.toLowerCase() === 'swimming')
-  const hasPad = singleWords.some((w) => w.toLowerCase() === 'pad')
-  if (hasSwimming && hasPad) {
-    const merged = singleWords.filter((w) => {
-      const k = w.toLowerCase()
-      return k !== 'swimming' && k !== 'pad'
-    })
-    if (!merged.some((w) => w.toLowerCase() === 'swimming pad')) merged.push('swimming pad')
-    singleWords.length = 0
-    singleWords.push(...merged)
-  }
-
-  // 리스트 순서: CANONICAL_ORDER에 있으면 그 순서, 없으면 뒤로 (이미지에서 읽은 단어만 반환)
-  const orderIndex = (word) => {
-    const k = word.toLowerCase()
-    const i = CANONICAL_ORDER.indexOf(k)
-    return i === -1 ? CANONICAL_ORDER.length : i
-  }
-  singleWords.sort((a, b) => orderIndex(a) - orderIndex(b))
-  return singleWords.slice(0, MAX_WORDS_PER_PAGE)
+  return result
 }
 
 export function useOcr() {
@@ -228,13 +136,13 @@ export function useOcr() {
         const imageBlob = await dataUrlToPngBlob(dataUrl)
         const { data } = await worker.recognize(imageBlob)
         const rawWords = data?.words ?? []
-        const singleWords = extractSingleWordsFromWords(rawWords)
+        const allWords = extractAllWords(rawWords)
         setStatus(
-          singleWords.length
-            ? `Found ${singleWords.length} word(s) (max ${MAX_WORDS_PER_PAGE}).`
-            : 'No single words in boxes found.'
+          allWords.length
+            ? `Found ${allWords.length} word(s).`
+            : 'No words found.'
         )
-        return singleWords
+        return allWords
       } catch (e) {
         const msg = e?.message || e?.toString?.() || 'Processing failed.'
         setStatus('Error: ' + msg)
