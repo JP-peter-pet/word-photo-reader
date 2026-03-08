@@ -21,6 +21,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
   const queueRef = useRef([])
   const timeoutRef = useRef(null)
   const voicesReadyRef = useRef(false)
+  const runIdRef = useRef(0)
 
   useEffect(() => {
     const syn = window.speechSynthesis
@@ -39,6 +40,7 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
   }, [])
 
   const stopSpeaking = useCallback(() => {
+    runIdRef.current += 1
     window.speechSynthesis?.cancel()
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
@@ -82,22 +84,30 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
       stopSpeaking()
       const w = String(word).trim()
       if (!w) return
+      runIdRef.current += 1
+      const myRunId = runIdRef.current
       setCurrentWord(w)
       setIsSpeaking(true)
       let count = 0
       const next = () => {
+        if (myRunId !== runIdRef.current) return
         count += 1
         if (count > repeatCount) {
-          setIsSpeaking(false)
-          setCurrentWord(null)
+          if (myRunId === runIdRef.current) {
+            setIsSpeaking(false)
+            setCurrentWord(null)
+          }
           return
         }
         speakOnce(w, () => {
+          if (myRunId !== runIdRef.current) return
           if (count < repeatCount) {
             timeoutRef.current = setTimeout(next, delayMs)
           } else {
-            setIsSpeaking(false)
-            setCurrentWord(null)
+            if (myRunId === runIdRef.current) {
+              setIsSpeaking(false)
+              setCurrentWord(null)
+            }
           }
         })
       }
@@ -112,24 +122,32 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
     (wordList) => {
       if (!wordList?.length || !window.speechSynthesis) return
       stopSpeaking()
+      runIdRef.current += 1
+      const myRunId = runIdRef.current
+      const list = [...wordList]
       setIsSpeaking(true)
       let wordIndex = 0
       let repeatIndex = 0
       const next = () => {
-        if (wordIndex >= wordList.length) {
-          setIsSpeaking(false)
-          setCurrentWord(null)
+        if (myRunId !== runIdRef.current) return
+        if (wordIndex >= list.length) {
+          if (myRunId === runIdRef.current) {
+            setIsSpeaking(false)
+            setCurrentWord(null)
+          }
           return
         }
-        const w = String(wordList[wordIndex]).trim()
+        const w = String(list[wordIndex]).trim()
         if (!w) {
           wordIndex += 1
           repeatIndex = 0
           timeoutRef.current = setTimeout(next, 300)
           return
         }
+        if (myRunId !== runIdRef.current) return
         setCurrentWord(w)
         speakOnce(w, () => {
+          if (myRunId !== runIdRef.current) return
           repeatIndex += 1
           if (repeatIndex >= repeatCount) {
             wordIndex += 1
@@ -141,7 +159,9 @@ export function useTts({ repeatCount = 5, delayMs = 2000 }) {
         })
       }
       const startList = () => {
+        if (myRunId !== runIdRef.current) return
         speakOnce(WARMUP_TEXT, () => {
+          if (myRunId !== runIdRef.current) return
           timeoutRef.current = setTimeout(next, 80)
         })
       }
