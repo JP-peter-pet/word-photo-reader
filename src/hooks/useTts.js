@@ -134,6 +134,37 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
     window.speechSynthesis.speak(u)
   }, [])
 
+  /** 한 단어를 N번 연속 큐에 넣어 재생. 반복마다 setTimeout 쓰지 않아 끊김 감소. */
+  const speakWordRepeats = useCallback((word, repeatCount, onAllEnd) => {
+    const syn = window.speechSynthesis
+    if (!word || !syn || repeatCount < 1) {
+      onAllEnd?.()
+      return
+    }
+    const text = String(word).trim() + '\u00A0'
+    const voice = getEnglishVoice()
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      utteranceRef.current = null
+      if (safetyId) clearTimeout(safetyId)
+      onAllEnd?.()
+    }
+    const safetyId = setTimeout(finish, Math.min(SAFETY_MS * repeatCount, 15000))
+    for (let i = 0; i < repeatCount; i++) {
+      const u = new SpeechSynthesisUtterance(text)
+      if (i === repeatCount - 1) utteranceRef.current = u
+      u.lang = LANG
+      u.rate = 0.85
+      u.pitch = 1
+      if (voice) u.voice = voice
+      u.onerror = finish
+      if (i === repeatCount - 1) u.onend = finish
+      syn.speak(u)
+    }
+  }, [])
+
   const speakWord = useCallback(
     (word) => {
       const w = String(word).trim()
@@ -163,43 +194,21 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
           if (syn.paused && typeof syn.resume === 'function') syn.resume()
         }, RESUME_INTERVAL_MS)
       }
-      let count = 0
-      const next = () => {
+      const onDone = () => {
         if (myRunId !== runIdRef.current) return
-        count += 1
-        if (count > repeatCount) {
-          if (myRunId === runIdRef.current) {
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current)
-              intervalRef.current = null
-            }
-            setIsSpeaking(false)
-            setCurrentWord(null)
-          }
-          return
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
         }
-        speakOnce(w, () => {
-          if (myRunId !== runIdRef.current) return
-          if (count < repeatCount) {
-            timeoutRef.current = setTimeout(next, delayMs)
-          } else {
-            if (myRunId === runIdRef.current) {
-              if (intervalRef.current) {
-                clearInterval(intervalRef.current)
-                intervalRef.current = null
-              }
-              setIsSpeaking(false)
-              setCurrentWord(null)
-            }
-          }
-        })
+        setIsSpeaking(false)
+        setCurrentWord(null)
       }
       primeSync(() => {
         if (myRunId !== runIdRef.current) return
-        timeoutRef.current = setTimeout(next, AFTER_PRIME_MS)
+        speakWordRepeats(w, repeatCount, onDone)
       })
     },
-    [delayMs, speakOnce, stopSpeaking, primeSync, isSpeaking, getRepeatCount]
+    [speakWordRepeats, stopSpeaking, primeSync, isSpeaking, getRepeatCount]
   )
 
   const LIST_DELAY_MS = 1200
@@ -256,16 +265,11 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
         if (myRunId !== runIdRef.current) return
         setCurrentWord(w)
         const repeatCount = getRepeatCount(w)
-        speakOnce(w, () => {
+        speakWordRepeats(w, repeatCount, () => {
           if (myRunId !== runIdRef.current) return
-          repeatIndex += 1
-          if (repeatIndex >= repeatCount) {
-            wordIndex += 1
-            repeatIndex = 0
-            timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
-          } else {
-            timeoutRef.current = setTimeout(next, delayMs)
-          }
+          wordIndex += 1
+          repeatIndex = 0
+          timeoutRef.current = setTimeout(next, LIST_DELAY_MS)
         })
       }
       primeSync(() => {
@@ -273,7 +277,7 @@ export function useTts({ repeatCountShort = 3, repeatCountLong = 5, lengthThresh
         timeoutRef.current = setTimeout(next, AFTER_PRIME_MS)
       })
     },
-    [speakOnce, stopSpeaking, delayMs, primeSync, isSpeaking, getRepeatCount]
+    [speakWordRepeats, stopSpeaking, delayMs, primeSync, isSpeaking, getRepeatCount]
   )
 
   return { speakWord, speakWordList, stopSpeaking, isSpeaking, currentWord, speechSupported }
